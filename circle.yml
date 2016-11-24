@@ -1,0 +1,29 @@
+general:
+  branches:
+    ignore:
+      - gh-pages
+
+machine:
+  services:
+    - docker
+  environment:
+    GOPATH: /home/ubuntu
+    SRCDIR: /home/ubuntu/tcptracer-bpf
+    PATH: $PATH:$HOME/.local/bin
+
+dependencies:
+  override:
+    - |
+      cd $SRCDIR && make
+
+test:
+  override:
+    - |
+      echo "No tests"
+
+deployment:
+  hub:
+    branch: /.*/
+    commands:
+      - |
+        cp ebpf/ebpf.o $CIRCLE_ARTIFACTS/
