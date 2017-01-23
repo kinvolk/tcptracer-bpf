@@ -12,6 +12,7 @@ build-docker-image:
 
 build-ebpf-object:
 	sudo docker run --rm -e DEBUG=$(DEBUG) \
+		-e CIRCLE_BUILD_URL=$(CIRCLE_BUILD_URL) \
 		-v $(PWD):/src:ro \
 		-v $(PWD)/ebpf:/dist/ $(DOCKER_IMAGE) \
 		make -f ebpf.mk build
