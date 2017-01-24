@@ -114,9 +114,6 @@ func Guess(b *elf.Module) error {
 	bindAddress := fmt.Sprintf("%s:%d", listenIP, listenPort)
 
 	finish := make(chan struct{})
-	go listen(bindAddress, "tcp4", finish)
-	defer close(finish)
-	time.Sleep(300 * time.Millisecond)
 
 	currentNetns, err := ownNetNS()
 	if err != nil {
@@ -138,6 +135,10 @@ func Guess(b *elf.Module) error {
 	if err == nil && status.status == ready {
 		return nil
 	}
+
+	go listen(bindAddress, "tcp4", finish)
+	defer close(finish)
+	time.Sleep(300 * time.Millisecond)
 
 	if err := b.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&status), 0); err != nil {
 		return fmt.Errorf("error initializing tcptracer_status map: %v", err)
