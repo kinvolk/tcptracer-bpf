@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/iovisor/gobpf/elf"
@@ -62,13 +61,16 @@ type tcpTracerStatus struct {
 	daddrIPv6       [4]uint32
 }
 
-func listen(url, netType string, finish chan struct{}) {
+func listen(url, netType string, listenCompleted, closeListen chan struct{}) {
 	l, err := net.Listen(netType, url)
 	if err != nil {
 		panic(err)
 	}
+
+	close(listenCompleted)
+
 	select {
-	case <-finish:
+	case <-closeListen:
 		l.Close()
 		return
 	}
@@ -113,8 +115,6 @@ func Guess(b *elf.Module) error {
 	listenPort := uint16(9091)
 	bindAddress := fmt.Sprintf("%s:%d", listenIP, listenPort)
 
-	finish := make(chan struct{})
-
 	currentNetns, err := ownNetNS()
 	if err != nil {
 		return fmt.Errorf("error getting current netns: %v", err)
@@ -136,9 +136,12 @@ func Guess(b *elf.Module) error {
 		return nil
 	}
 
-	go listen(bindAddress, "tcp4", finish)
-	defer close(finish)
-	time.Sleep(300 * time.Millisecond)
+	listenCompleted := make(chan struct{})
+	closeListen := make(chan struct{})
+
+	go listen(bindAddress, "tcp4", listenCompleted, closeListen)
+	<-listenCompleted
+	defer close(closeListen)
 
 	if err := b.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&status), 0); err != nil {
 		return fmt.Errorf("error initializing tcptracer_status map: %v", err)
