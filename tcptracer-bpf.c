@@ -771,6 +771,35 @@ int kprobe__tcp_close(struct pt_regs *ctx)
 		bpf_probe_read(&sport, sizeof(sport), ((char *)sk) + status->offset_sport);
 		bpf_probe_read(&dport, sizeof(dport), ((char *)sk) + status->offset_dport);
 
+
+		if (is_ipv4_mapped_ipv6(saddr_h, saddr_l, daddr_h, daddr_l)) {
+			struct tcp_ipv4_event_t evt4 = {
+				.timestamp = bpf_ktime_get_ns(),
+				.cpu = bpf_get_smp_processor_id(),
+				.type = TCP_EVENT_TYPE_CLOSE,
+				.pid = pid >> 32,
+				.saddr = (u32)(saddr_l >> 32),
+				.daddr = (u32)(daddr_l >> 32),
+				.sport = ntohs(sport),
+				.dport = ntohs(dport),
+				.netns = net_ns_inum,
+			};
+			bpf_get_current_comm(&evt4.comm, sizeof(evt4.comm));
+			if (evt4.saddr != 0 && evt4.daddr != 0 && evt4.sport != 0 && evt4.dport != 0) {
+				bpf_perf_event_output(ctx, &tcp_event_ipv4, evt4.cpu, &evt4, sizeof(evt4));
+			}
+
+			struct ipv4_tuple_t t = {
+				t.saddr = evt4.saddr,
+				t.daddr = evt4.daddr,
+				t.sport = ntohs(sport),
+				t.dport = ntohs(dport),
+				t.netns = net_ns_inum,
+			};
+			bpf_map_delete_elem(&tuplepid_ipv4, &t);
+			return 0;
+		}
+
 		struct tcp_ipv6_event_t evt = {
 			.timestamp = bpf_ktime_get_ns(),
 			.cpu = bpf_get_smp_processor_id(),
@@ -800,22 +829,6 @@ int kprobe__tcp_close(struct pt_regs *ctx)
 			t.dport = ntohs(dport),
 			t.netns = net_ns_inum,
 		};
-		if (is_ipv4_mapped_ipv6(saddr_h, saddr_l, daddr_h, daddr_l)) {
-			struct tcp_ipv4_event_t evt4 = {
-				.timestamp = bpf_ktime_get_ns(),
-				.cpu = bpf_get_smp_processor_id(),
-				.pid = pid >> 32,
-				.type = TCP_EVENT_TYPE_CLOSE,
-				.netns = net_ns_inum,
-				.saddr = (u32)(saddr_l >> 32),
-				.daddr = (u32)(daddr_l >> 32),
-				.sport = ntohs(sport),
-				.dport = ntohs(dport),
-			};
-			bpf_get_current_comm(&evt4.comm, sizeof(evt4.comm));
-			bpf_perf_event_output(ctx, &tcp_event_ipv4, evt4.cpu, &evt4, sizeof(evt4));
-			return 0;
-		}
 
 		bpf_map_delete_elem(&tuplepid_ipv6, &t);
 	}
@@ -899,16 +912,18 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 			struct tcp_ipv4_event_t evt4 = {
 				.timestamp = bpf_ktime_get_ns(),
 				.cpu = bpf_get_smp_processor_id(),
-				.pid = pid >> 32,
 				.type = TCP_EVENT_TYPE_ACCEPT,
-				.netns = net_ns_inum,
+				.pid = pid >> 32,
 				.saddr = (u32)(evt.saddr_l >> 32),
 				.daddr = (u32)(evt.daddr_l >> 32),
 				.sport = evt.sport,
 				.dport = evt.dport,
+				.netns = net_ns_inum,
 			};
 			bpf_get_current_comm(&evt4.comm, sizeof(evt4.comm));
-			bpf_perf_event_output(ctx, &tcp_event_ipv4, evt4.cpu, &evt4, sizeof(evt4));
+			if (evt4.saddr != 0 && evt4.daddr != 0 && evt4.sport != 0 && evt4.dport != 0) {
+				bpf_perf_event_output(ctx, &tcp_event_ipv4, evt4.cpu, &evt4, sizeof(evt4));
+			}
 			return 0;
 		}
 		// do not send event if IP address is :: or port is 0
