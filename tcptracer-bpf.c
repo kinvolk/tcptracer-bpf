@@ -425,7 +425,7 @@ static int read_ipv4_tuple(struct ipv4_tuple_t *tuple, struct tcptracer_status_t
 	return 1;
 }
 
-static int read_ipv6_tuple(struct ipv6_tuple_t *tuple, struct tcptracer_status_t *status, struct sock *skp)
+static int read_ipv6_tuple(struct ipv6_tuple_t *tp, struct tcptracer_status_t *status, struct sock *skp)
 {
 	struct ns_common *ns;
 	u32 saddr, daddr, net_ns_inum;
@@ -452,13 +452,13 @@ static int read_ipv6_tuple(struct ipv6_tuple_t *tuple, struct tcptracer_status_t
 	bpf_probe_read(&skc_net, sizeof(void *), ((char *)skp) + status->offset_netns);
 	bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char *)skc_net) + status->offset_ino);
 
-	tuple->saddr_h = saddr_h;
-	tuple->saddr_l = saddr_l;
-	tuple->daddr_h = daddr_h;
-	tuple->daddr_l = daddr_l;
-	tuple->sport = ntohs(sport);
-	tuple->dport = ntohs(dport);
-	tuple->netns = net_ns_inum;
+	tp->saddr_h = saddr_h;
+	tp->saddr_l = saddr_l;
+	tp->daddr_h = daddr_h;
+	tp->daddr_l = daddr_l;
+	tp->sport = ntohs(sport);
+	tp->dport = ntohs(dport);
+	tp->netns = net_ns_inum;
 
 	// if addresses or ports are 0, ignore
 	if (!(saddr_h || saddr_l) || !(daddr_h || daddr_l) || sport == 0 || dport == 0) {
@@ -561,9 +561,9 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx)
 
 	// output
 	struct ipv6_tuple_t t = { };
-	if (!read_ipv6_tuple(&t, status, skp)) {
+	struct ipv6_tuple_t *tp = &t;
+	if (!read_ipv6_tuple(tp, status, skp))
 		return 0;
-	}
 
 	struct pid_comm p = { };
 	p.pid = pid;
@@ -643,9 +643,11 @@ int kprobe__tcp_set_state(struct pt_regs *ctx)
 	} else if (check_family(skp, AF_INET6)) {
 		// output
 		struct ipv6_tuple_t t = { };
+		/*
 		if (!read_ipv6_tuple(&t, status, skp)) {
 			return 0;
 		}
+		*/
 
 		struct pid_comm *pp;
 		pp = bpf_map_lookup_elem(&tuplepid_ipv6, &t);
