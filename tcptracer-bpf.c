@@ -589,6 +589,7 @@ SEC("kprobe/tcp_set_state")
 int kprobe__tcp_set_state(struct pt_regs *ctx)
 {
 	u64 pid = bpf_get_current_pid_tgid();
+	u32 cpu = bpf_get_smp_processor_id();
 	struct sock *skp;
 	struct tcptracer_status_t *status;
 	int state;
@@ -623,7 +624,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx)
 
 		struct tcp_ipv4_event_t evt4 = {
 			.timestamp = bpf_ktime_get_ns(),
-			.cpu = bpf_get_smp_processor_id(),
+			.cpu = cpu,
 			.type = TCP_EVENT_TYPE_CONNECT,
 			.pid = p.pid >> 32,
 			.saddr = t.saddr,
@@ -637,7 +638,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx)
 			evt4.comm[i] = p.comm[i];
 		}
 
-		bpf_perf_event_output(ctx, &tcp_event_ipv4, evt4.cpu, &evt4, sizeof(evt4));
+		bpf_perf_event_output(ctx, &tcp_event_ipv4, cpu, &evt4, sizeof(evt4));
 		bpf_map_delete_elem(&tuplepid_ipv4, &t);
 	} else if (check_family(skp, AF_INET6)) {
 		// output
@@ -655,7 +656,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx)
 		bpf_probe_read(&p, sizeof(struct pid_comm), pp);
 		struct tcp_ipv6_event_t evt6 = {
 			.timestamp = bpf_ktime_get_ns(),
-			.cpu = bpf_get_smp_processor_id(),
+			.cpu = cpu,
 			.type = TCP_EVENT_TYPE_CONNECT,
 			.pid = p.pid >> 32,
 			.saddr_h = t.saddr_h,
@@ -671,7 +672,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx)
 			evt6.comm[i] = p.comm[i];
 		}
 
-		bpf_perf_event_output(ctx, &tcp_event_ipv6, evt6.cpu, &evt6, sizeof(evt6));
+		bpf_perf_event_output(ctx, &tcp_event_ipv6, cpu, &evt6, sizeof(evt6));
 		bpf_map_delete_elem(&tuplepid_ipv6, &t);
 	}
 
@@ -740,7 +741,7 @@ int kprobe__tcp_close(struct pt_regs *ctx)
 		if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
 			struct tcp_ipv4_event_t evt4 = {
 				.timestamp = bpf_ktime_get_ns(),
-				.cpu = bpf_get_smp_processor_id(),
+				.cpu = cpu,
 				.type = TCP_EVENT_TYPE_CLOSE,
 				.pid = pid >> 32,
 				.saddr = (u32)(t.saddr_l >> 32),
@@ -751,7 +752,7 @@ int kprobe__tcp_close(struct pt_regs *ctx)
 			};
 			bpf_get_current_comm(&evt4.comm, sizeof(evt4.comm));
 			if (evt4.saddr != 0 && evt4.daddr != 0 && evt4.sport != 0 && evt4.dport != 0) {
-				bpf_perf_event_output(ctx, &tcp_event_ipv4, evt4.cpu, &evt4, sizeof(evt4));
+				bpf_perf_event_output(ctx, &tcp_event_ipv4, cpu, &evt4, sizeof(evt4));
 			}
 
 			struct ipv4_tuple_t t = {
@@ -767,7 +768,7 @@ int kprobe__tcp_close(struct pt_regs *ctx)
 
 		struct tcp_ipv6_event_t evt = {
 			.timestamp = bpf_ktime_get_ns(),
-			.cpu = bpf_get_smp_processor_id(),
+			.cpu = cpu,
 			.type = TCP_EVENT_TYPE_CLOSE,
 			.pid = pid >> 32,
 			.saddr_h = t.saddr_h,
@@ -861,7 +862,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 		if (is_ipv4_mapped_ipv6(evt.saddr_h, evt.saddr_l, evt.daddr_h, evt.daddr_l)) {
 			struct tcp_ipv4_event_t evt4 = {
 				.timestamp = bpf_ktime_get_ns(),
-				.cpu = bpf_get_smp_processor_id(),
+				.cpu = cpu,
 				.type = TCP_EVENT_TYPE_ACCEPT,
 				.pid = pid >> 32,
 				.saddr = (u32)(evt.saddr_l >> 32),
@@ -872,7 +873,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 			};
 			bpf_get_current_comm(&evt4.comm, sizeof(evt4.comm));
 			if (evt4.saddr != 0 && evt4.daddr != 0 && evt4.sport != 0 && evt4.dport != 0) {
-				bpf_perf_event_output(ctx, &tcp_event_ipv4, evt4.cpu, &evt4, sizeof(evt4));
+				bpf_perf_event_output(ctx, &tcp_event_ipv4, cpu, &evt4, sizeof(evt4));
 			}
 			return 0;
 		}
