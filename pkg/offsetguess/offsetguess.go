@@ -107,9 +107,20 @@ func htons(a uint16) uint16 {
 	return byteorder.Host.Uint16(arr)
 }
 
-// Guess expects elf.Module to hold a tcptracer-bpf object and initializes
-// the tracer by guessing the right kernel struct offsets. Results are
+// Guess expects elf.Module to hold a tcptracer-bpf object and initializes the
+// tracer by guessing the right struct sock kernel struct offsets. Results are
 // stored in the `tcptracer_status` map as used by the module.
+//
+// To guess the offsets, we create connections from localhost (127.0.0.1) to
+// 127.0.0.2:9091, where we have a server listening. We store the current
+// possible offset and expected value of each field in a eBPF map. Each
+// connection will trigger the eBPF program attached to tcp_v{4,6}_connect
+// where, for each field to guess, we store the value of
+//     (struct sock *)skp + possible_offset
+// in the eBPF map. Then, back in userspace (checkAndUpdateCurrentOffset()), we
+// check that value against the expected value of the field, advancing the
+// offset and repeating the process until we find the value we expect. Then, we
+// guess the next field.
 func Guess(b *elf.Module) error {
 	listenIP := "127.0.0.2"
 	listenPort := uint16(9091)
@@ -161,6 +172,9 @@ func Guess(b *elf.Module) error {
 	for status.status != ready {
 		var daddrIPv6 [4]uint32
 
+		// for ipv6, we don't need the source port because we already guessed
+		// it doing ipv4 connections so we use a random destination address and
+		// try to connect to it
 		daddrIPv6[0] = rand.Uint32()
 		daddrIPv6[1] = rand.Uint32()
 		daddrIPv6[2] = rand.Uint32()
@@ -174,6 +188,7 @@ func Guess(b *elf.Module) error {
 				return fmt.Errorf("error dialing %q: %v\n", bindAddress, err)
 			}
 
+			// get the source port assigned by the kernel
 			sport, err = strconv.Atoi(strings.Split(conn.LocalAddr().String(), ":")[1])
 			if err != nil {
 				return fmt.Errorf("error converting source port: %v", err)
@@ -199,6 +214,8 @@ func Guess(b *elf.Module) error {
 			}
 		}
 
+		// get the updated map value so we can check if the current offset is
+		// the right one
 		err = b.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&status))
 		if err != nil {
 			return fmt.Errorf("error reading tcptracer_status: %v", err)
@@ -267,6 +284,8 @@ func Guess(b *elf.Module) error {
 			case guessDaddrIPv6:
 				if compareIPv6(status.daddrIPv6, daddrIPv6) {
 					status.what++
+					// at this point, we've guessed all the offsets we need,
+					// set the status to "ready"
 					status.status = ready
 				} else {
 					status.offsetDaddrIPv6++
@@ -277,10 +296,12 @@ func Guess(b *elf.Module) error {
 			}
 		}
 
+		// update the map with the new offset/field to check
 		if err := b.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&status), 0); err != nil {
 			return fmt.Errorf("error updating tcptracer_status: %v", err)
 		}
 
+		// stop at a reasonable offset so we don't run forever
 		if status.offsetSaddr >= 200 || status.offsetDaddr >= 200 ||
 			status.offsetSport >= 2000 || status.offsetDport >= 200 ||
 			status.offsetNetns >= 200 || status.offsetFamily >= 200 ||
