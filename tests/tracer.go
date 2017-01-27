@@ -82,7 +82,7 @@ func tcpEventCbV6(e event.TcpV6) {
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s .../ebpf.o\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s .../tcptracer-ebpf.o\n", os.Args[0])
 		os.Exit(1)
 	}
 	fileName := os.Args[1]

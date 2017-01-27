@@ -7,8 +7,8 @@ machine:
   services:
     - docker
   environment:
-    GOPATH: /home/ubuntu
-    SRCDIR: /home/ubuntu/tcptracer-bpf
+    GOPATH: $HOME
+    SRCDIR: $HOME/tcptracer-bpf
     PATH: $PATH:$HOME/.local/bin
 
 dependencies:
@@ -26,4 +26,4 @@ deployment:
     branch: /.*/
     commands:
       - |
-        cp ebpf/ebpf.o $CIRCLE_ARTIFACTS/
+        cp ebpf/tcptracer-ebpf.o $CIRCLE_ARTIFACTS/

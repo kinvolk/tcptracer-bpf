@@ -14,7 +14,7 @@ See `tests/tracer.go` for an example how to use tcptracer-bpf with gobpf.
 make
 ```
 
-The object file can be found in `ebpf/ebpf.o`.
+The object file can be found in `ebpf/tcptracer-ebpf.o`.
 
 ## Test
 

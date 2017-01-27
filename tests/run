@@ -9,7 +9,7 @@ fi
 
 readonly dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 readonly tracer="${dir}/tracer"
-readonly ebpf_object=${1:-"${dir}/../ebpf/ebpf.o"}
+readonly ebpf_object=${1:-"${dir}/../ebpf/tcptracer-ebpf.o"}
 readonly port=61111
 readonly netns=$(mktemp /tmp/tcptracer-bpf-test-netns-XXXXXXXX)
 readonly tracer_output=$(mktemp /tmp/tcptracer-bpf-test-stdout-XXXXXXXX)
