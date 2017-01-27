@@ -100,6 +100,10 @@ struct bpf_map_def SEC("maps/tcp_event_ipv6") tcp_event_ipv6 = {
 };
 
 /* These maps are used to match the kprobe & kretprobe of connect */
+
+/* This is a key/value store with the keys being a pid
+ * and the values being a struct sock *.
+ */
 struct bpf_map_def SEC("maps/connectsock_ipv4") connectsock_ipv4 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(__u64),
@@ -107,6 +111,9 @@ struct bpf_map_def SEC("maps/connectsock_ipv4") connectsock_ipv4 = {
 	.max_entries = 1024,
 };
 
+/* This is a key/value store with the keys being a pid
+ * and the values being a struct sock *.
+ */
 struct bpf_map_def SEC("maps/connectsock_ipv6") connectsock_ipv6 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(__u64),
@@ -114,6 +121,9 @@ struct bpf_map_def SEC("maps/connectsock_ipv6") connectsock_ipv6 = {
 	.max_entries = 1024,
 };
 
+/* This is a key/value store with the keys being an ipv4_tuple_t
+ * and the values being a struct pid_comm_t.
+ */
 struct bpf_map_def SEC("maps/tuplepid_ipv4") tuplepid_ipv4 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct ipv4_tuple_t),
@@ -121,6 +131,9 @@ struct bpf_map_def SEC("maps/tuplepid_ipv4") tuplepid_ipv4 = {
 	.max_entries = 1024,
 };
 
+/* This is a key/value store with the keys being an ipv6_tuple_t
+ * and the values being a struct pid_comm_t.
+ */
 struct bpf_map_def SEC("maps/tuplepid_ipv6") tuplepid_ipv6 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct ipv6_tuple_t),
