@@ -413,8 +413,8 @@ static int read_ipv4_tuple(struct ipv4_tuple_t *tuple, struct tcptracer_status_t
 
 	tuple->saddr = saddr;
 	tuple->daddr = daddr;
-	tuple->sport = ntohs(sport);
-	tuple->dport = ntohs(dport);
+	tuple->sport = sport;
+	tuple->dport = dport;
 	tuple->netns = net_ns_inum;
 
 	// if addresses or ports are 0, ignore
@@ -425,6 +425,7 @@ static int read_ipv4_tuple(struct ipv4_tuple_t *tuple, struct tcptracer_status_t
 	return 1;
 }
 
+__attribute__((always_inline))
 static int read_ipv6_tuple(struct ipv6_tuple_t *tp, struct tcptracer_status_t *status, struct sock *skp)
 {
 	struct ns_common *ns;
@@ -456,8 +457,8 @@ static int read_ipv6_tuple(struct ipv6_tuple_t *tp, struct tcptracer_status_t *s
 	tp->saddr_l = saddr_l;
 	tp->daddr_h = daddr_h;
 	tp->daddr_l = daddr_l;
-	tp->sport = ntohs(sport);
-	tp->dport = ntohs(dport);
+	tp->sport = sport;
+	tp->dport = dport;
 	tp->netns = net_ns_inum;
 
 	// if addresses or ports are 0, ignore
