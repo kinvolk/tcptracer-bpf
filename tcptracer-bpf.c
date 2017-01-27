@@ -376,6 +376,7 @@ static inline bool check_family(struct sock *sk, u16 expected_family) {
 	return family == expected_family;
 }
 
+__attribute__((always_inline))
 static int read_ipv4_tuple(struct ipv4_tuple_t *tuple, struct tcptracer_status_t *status, struct sock *skp)
 {
 	struct ns_common *ns;
@@ -412,6 +413,7 @@ static int read_ipv4_tuple(struct ipv4_tuple_t *tuple, struct tcptracer_status_t
 	return 1;
 }
 
+__attribute__((always_inline))
 static int read_ipv6_tuple(struct ipv6_tuple_t *tuple, struct tcptracer_status_t *status, struct sock *skp)
 {
 	struct ns_common *ns;
