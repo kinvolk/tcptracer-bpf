@@ -74,7 +74,7 @@ struct ipv6_tuple_t {
 	u32 netns;
 };
 
-struct pid_comm {
+struct pid_comm_t {
 	u64 pid;
 	char comm[TASK_COMM_LEN];
 };
@@ -117,14 +117,14 @@ struct bpf_map_def SEC("maps/connectsock_ipv6") connectsock_ipv6 = {
 struct bpf_map_def SEC("maps/tuplepid_ipv4") tuplepid_ipv4 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct ipv4_tuple_t),
-	.value_size = sizeof(struct pid_comm),
+	.value_size = sizeof(struct pid_comm_t),
 	.max_entries = 1024,
 };
 
 struct bpf_map_def SEC("maps/tuplepid_ipv6") tuplepid_ipv6 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct ipv6_tuple_t),
-	.value_size = sizeof(struct pid_comm),
+	.value_size = sizeof(struct pid_comm_t),
 	.max_entries = 1024,
 };
 
@@ -509,7 +509,7 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx)
 		return 0;
 	}
 
-	struct pid_comm p = { .pid = pid };
+	struct pid_comm_t p = { .pid = pid };
 	bpf_get_current_comm(p.comm, sizeof(p.comm));
 	bpf_map_update_elem(&tuplepid_ipv4, &t, &p, BPF_ANY);
 
@@ -567,7 +567,7 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx)
 		return 0;
 	}
 
-	struct pid_comm p = { };
+	struct pid_comm_t p = { };
 	p.pid = pid;
 	bpf_get_current_comm(p.comm, sizeof(p.comm));
 
@@ -615,14 +615,14 @@ int kprobe__tcp_set_state(struct pt_regs *ctx)
 			return 0;
 		}
 
-		struct pid_comm *pp;
+		struct pid_comm_t *pp;
 
 		pp = bpf_map_lookup_elem(&tuplepid_ipv4, &t);
 		if (pp == 0) {
 			return 0;	// missed entry
 		}
-		struct pid_comm p = { };
-		bpf_probe_read(&p, sizeof(struct pid_comm), pp);
+		struct pid_comm_t p = { };
+		bpf_probe_read(&p, sizeof(struct pid_comm_t), pp);
 
 		struct tcp_ipv4_event_t evt4 = {
 			.timestamp = bpf_ktime_get_ns(),
@@ -649,13 +649,13 @@ int kprobe__tcp_set_state(struct pt_regs *ctx)
 			return 0;
 		}
 
-		struct pid_comm *pp;
+		struct pid_comm_t *pp;
 		pp = bpf_map_lookup_elem(&tuplepid_ipv6, &t);
 		if (pp == 0) {
 			return 0;       // missed entry
 		}
-		struct pid_comm p = { };
-		bpf_probe_read(&p, sizeof(struct pid_comm), pp);
+		struct pid_comm_t p = { };
+		bpf_probe_read(&p, sizeof(struct pid_comm_t), pp);
 		struct tcp_ipv6_event_t evt6 = {
 			.timestamp = bpf_ktime_get_ns(),
 			.cpu = cpu,
