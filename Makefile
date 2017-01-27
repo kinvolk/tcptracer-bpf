@@ -5,13 +5,16 @@ PWD=$(shell pwd)
 DOCKER_FILE?=Dockerfile
 DOCKER_IMAGE?=weaveworks/tcptracer-bpf-builder
 
+# If you can use docker without being root, you can do "make SUDO="
+SUDO=$(shell docker info >/dev/null 2>&1 || echo "sudo -E")
+
 all: build-docker-image build-ebpf-object
 
 build-docker-image:
-	sudo docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) .
+	$(SUDO) docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) .
 
 build-ebpf-object:
-	sudo docker run --rm -e DEBUG=$(DEBUG) \
+	$(SUDO) docker run --rm -e DEBUG=$(DEBUG) \
 		-e CIRCLE_BUILD_URL=$(CIRCLE_BUILD_URL) \
 		-v $(PWD):/src:ro \
 		-v $(PWD)/ebpf:/dist/ $(DOCKER_IMAGE) \
@@ -19,4 +22,4 @@ build-ebpf-object:
 	sudo chown -R $(UID):$(UID) ebpf
 
 delete-docker-image:
-	sudo docker rmi -f $(DOCKER_IMAGE)
+	$(SUDO) docker rmi -f $(DOCKER_IMAGE)
