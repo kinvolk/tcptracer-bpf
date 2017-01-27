@@ -142,7 +142,8 @@ struct bpf_map_def SEC("maps/tuplepid_ipv6") tuplepid_ipv6 = {
 };
 
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
-static inline bool is_big_endian(void)
+__attribute__((always_inline))
+static bool is_big_endian(void)
 {
 	union {
 		uint32_t i;
@@ -158,7 +159,8 @@ static inline bool is_big_endian(void)
  * in the most significant 32 bits of part saddr_l and daddr_l.
  * Meanwhile the end of the mask is stored in the least significant 32 bits.
  */
-static inline bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr_l) {
+__attribute__((always_inline))
+static bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr_l) {
 	if (is_big_endian()) {
 		return ((saddr_h == 0 && ((u32)(saddr_l >> 32) == 0x0000FFFF)) ||
                         (daddr_h == 0 && ((u32)(daddr_l >> 32) == 0x0000FFFF)));
@@ -206,6 +208,7 @@ struct bpf_map_def SEC("maps/tcptracer_status") tcptracer_status = {
 	.max_entries = 8,
 };
 
+__attribute__((always_inline))
 static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *skp, u64 pid) {
 	u64 zero = 0;
 
@@ -309,6 +312,7 @@ static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *
 	return 0;
 }
 
+__attribute__((always_inline))
 static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *skp, u64 pid) {
 	u64 zero = 0;
 
@@ -373,7 +377,8 @@ static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *
 	return 0;
 }
 
-static inline bool check_family(struct sock *sk, u16 expected_family) {
+__attribute__((always_inline))
+static bool check_family(struct sock *sk, u16 expected_family) {
 	struct tcptracer_status_t *status;
 	u64 zero = 0;
 	u16 family;
