@@ -127,7 +127,7 @@ func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues)
 		switch status.what {
 		case guessSaddr:
 			if status.saddr == uint32(expected.saddr) {
-				status.what++
+				status.what = guessDaddr
 				status.status = checking
 			} else {
 				status.offsetSaddr++
@@ -136,7 +136,7 @@ func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues)
 			}
 		case guessDaddr:
 			if status.daddr == uint32(expected.daddr) {
-				status.what++
+				status.what = guessFamily
 				status.status = checking
 			} else {
 				status.offsetDaddr++
@@ -145,7 +145,7 @@ func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues)
 			}
 		case guessFamily:
 			if status.family == uint16(expected.family) {
-				status.what++
+				status.what = guessSport
 				status.status = checking
 				// we know the sport ((struct inet_sock)->inet_sport) is
 				// after the family field, so we start from there
@@ -156,7 +156,7 @@ func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues)
 			}
 		case guessSport:
 			if status.sport == uint16(expected.sport) {
-				status.what++
+				status.what = guessDport
 				status.status = checking
 			} else {
 				status.offsetSport++
@@ -164,7 +164,7 @@ func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues)
 			}
 		case guessDport:
 			if status.dport == expected.dport {
-				status.what++
+				status.what = guessNetns
 				status.status = checking
 			} else {
 				status.offsetDport++
@@ -172,7 +172,7 @@ func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues)
 			}
 		case guessNetns:
 			if status.netns == expected.netns {
-				status.what++
+				status.what = guessDaddrIPv6
 				status.status = checking
 			} else {
 				status.offsetIno++
@@ -185,7 +185,6 @@ func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues)
 			}
 		case guessDaddrIPv6:
 			if compareIPv6(status.daddrIPv6, expected.daddrIPv6) {
-				status.what++
 				// at this point, we've guessed all the offsets we need,
 				// set the status to "ready"
 				status.status = ready
