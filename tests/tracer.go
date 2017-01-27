@@ -127,7 +127,7 @@ func main() {
 		var event event.TcpV4
 		for {
 			data := <-channelV4
-			err := binary.Read(bytes.NewBuffer(data), byteorder.Host, &event)
+			err := binary.Read(bytes.NewBuffer(data), byteorder.NativeEndian, &event)
 			if err != nil {
 				fmt.Printf("failed to decode received data: %s\n", err)
 				continue
@@ -140,7 +140,7 @@ func main() {
 		var event event.TcpV6
 		for {
 			data := <-channelV6
-			err := binary.Read(bytes.NewBuffer(data), byteorder.Host, &event)
+			err := binary.Read(bytes.NewBuffer(data), byteorder.NativeEndian, &event)
 			if err != nil {
 				fmt.Printf("failed to decode received data: %s\n", err)
 				continue
