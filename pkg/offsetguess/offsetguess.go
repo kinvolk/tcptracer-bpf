@@ -93,7 +93,7 @@ func ownNetNS() (uint64, error) {
 	return s.Ino, nil
 }
 
-func ipFromUint32Arr(ipv6Addr [4]uint32) net.IP {
+func ipv6FromUint32Arr(ipv6Addr [4]uint32) net.IP {
 	buf := make([]byte, 16)
 	for i := 0; i < 16; i++ {
 		buf[i] = *(*byte)(unsafe.Pointer((uintptr(unsafe.Pointer(&ipv6Addr[0])) + uintptr(i))))
@@ -180,7 +180,7 @@ func Guess(b *elf.Module) error {
 		daddrIPv6[2] = rand.Uint32()
 		daddrIPv6[3] = rand.Uint32()
 
-		ip := ipFromUint32Arr(daddrIPv6)
+		ip := ipv6FromUint32Arr(daddrIPv6)
 
 		if status.what != guessDaddrIPv6 {
 			conn, err := net.Dial("tcp4", bindAddress)
