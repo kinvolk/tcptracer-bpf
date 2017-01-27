@@ -21,6 +21,11 @@ import (
 type tcpTracerState uint64
 
 const (
+	threshold         = 200
+	thresholdInetSock = 2000
+)
+
+const (
 	uninitialized tcpTracerState = iota
 	checking
 	checked
@@ -172,7 +177,7 @@ func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues)
 			} else {
 				status.offsetIno++
 				// go to the next offsetNetns if we get an error
-				if status.err != 0 || status.offsetIno >= 200 {
+				if status.err != 0 || status.offsetIno >= threshold {
 					status.offsetIno = 0
 					status.offsetNetns++
 				}
@@ -319,9 +324,9 @@ func Guess(b *elf.Module) error {
 		}
 
 		// stop at a reasonable offset so we don't run forever
-		if status.offsetSaddr >= 200 || status.offsetDaddr >= 200 ||
-			status.offsetSport >= 2000 || status.offsetDport >= 200 ||
-			status.offsetNetns >= 200 || status.offsetFamily >= 200 ||
+		if status.offsetSaddr >= threshold || status.offsetDaddr >= threshold ||
+			status.offsetSport >= thresholdInetSock || status.offsetDport >= threshold ||
+			status.offsetNetns >= threshold || status.offsetFamily >= threshold ||
 			status.offsetDaddrIPv6 >= 200 {
 			return fmt.Errorf("overflow, bailing out")
 		}
