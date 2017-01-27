@@ -117,9 +117,9 @@ func ipv6FromUint32Arr(ipv6Addr [4]uint32) net.IP {
 }
 
 func htons(a uint16) uint16 {
-	arr := make([]byte, 2)
-	binary.BigEndian.PutUint16(arr, a)
-	return byteorder.Host.Uint16(arr)
+	var arr [2]byte
+	binary.BigEndian.PutUint16(arr[:], a)
+	return byteorder.NativeEndian.Uint16(arr)
 }
 
 func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues) error {
