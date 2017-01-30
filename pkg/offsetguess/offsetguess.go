@@ -301,6 +301,9 @@ func Guess(b *elf.Module) error {
 			conn.Close()
 		} else {
 			conn, err := net.Dial("tcp6", fmt.Sprintf("[%s]:9092", ip))
+			// Since we connect to a random IP, this will most likely fail.
+			// In the unlikely case where it connects successfully, we close
+			// the connection to avoid a leak.
 			if err == nil {
 				conn.Close()
 			}
