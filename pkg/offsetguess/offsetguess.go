@@ -45,10 +45,11 @@ const (
 )
 
 const listenIP = "127.0.0.2"
-const listenPort = uint16(9091)
 
+// port 0 means we let the kernel choose a free port
+var listenPort uint16 = 0
 var zero uint64
-var bindAddress = fmt.Sprintf("%s:%d", listenIP, listenPort)
+var bindAddress string
 
 type tcpTracerStatus struct {
 	status          tcpTracerState
@@ -82,11 +83,21 @@ type fieldValues struct {
 	daddrIPv6 [4]uint32
 }
 
-func listen(url, netType string, listenCompleted, closeListen chan struct{}) {
+func listen(netType string, listenCompleted chan error, closeListen chan struct{}) {
+	url := fmt.Sprintf("%s:%d", listenIP, listenPort)
 	l, err := net.Listen(netType, url)
 	if err != nil {
-		panic(err)
+		listenCompleted <- err
+		return
 	}
+
+	lport, err := strconv.Atoi(strings.Split(l.Addr().String(), ":")[1])
+	if err != nil {
+		listenCompleted <- err
+		return
+	}
+	listenPort = uint16(lport)
+	bindAddress = fmt.Sprintf("%s:%d", listenIP, lport)
 
 	close(listenCompleted)
 
@@ -307,11 +318,16 @@ func Guess(b *elf.Module) error {
 		return nil
 	}
 
-	listenCompleted := make(chan struct{})
+	listenCompleted := make(chan error)
 	closeListen := make(chan struct{})
 
-	go listen(bindAddress, "tcp4", listenCompleted, closeListen)
-	<-listenCompleted
+	go listen("tcp4", listenCompleted, closeListen)
+	select {
+	case err := <-listenCompleted:
+		if err != nil {
+			return err
+		}
+	}
 	defer close(closeListen)
 
 	// initialize map
