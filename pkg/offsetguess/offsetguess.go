@@ -44,6 +44,12 @@ const (
 	guessDaddrIPv6
 )
 
+const listenIP = "127.0.0.2"
+const listenPort = uint16(9091)
+
+var zero uint64
+var bindAddress = fmt.Sprintf("%s:%d", listenIP, listenPort)
+
 type tcpTracerStatus struct {
 	status          tcpTracerState
 	pidTgid         uint64
@@ -122,7 +128,68 @@ func htons(a uint16) uint16 {
 	return byteorder.NativeEndian.Uint16(arr[:])
 }
 
-func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues) error {
+// tryCurrentOffset creates a IPv4 or IPv6 connection so the corresponding
+// tcp_v{4,6}_connect kprobes get triggered and save the value at the current
+// offset in the eBPF map
+func tryCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTracerStatus, expected *fieldValues) error {
+	// for ipv6, we don't need the source port because we already guessed
+	// it doing ipv4 connections so we use a random destination address and
+	// try to connect to it
+	expected.daddrIPv6[0] = rand.Uint32()
+	expected.daddrIPv6[1] = rand.Uint32()
+	expected.daddrIPv6[2] = rand.Uint32()
+	expected.daddrIPv6[3] = rand.Uint32()
+
+	ip := ipv6FromUint32Arr(expected.daddrIPv6)
+
+	if status.what != guessDaddrIPv6 {
+		conn, err := net.Dial("tcp4", bindAddress)
+		if err != nil {
+			return fmt.Errorf("error dialing %q: %v\n", bindAddress, err)
+		}
+
+		// get the source port assigned by the kernel
+		sport, err := strconv.Atoi(strings.Split(conn.LocalAddr().String(), ":")[1])
+		if err != nil {
+			return fmt.Errorf("error converting source port: %v", err)
+		}
+
+		expected.sport = htons(uint16(sport))
+
+		// set SO_LINGER to 0 so the connection state after closing is
+		// CLOSE instead of TIME_WAIT. In this way, they will disappear
+		// from the conntrack table after around 10 seconds instead of 2
+		// minutes
+		if tcpConn, ok := conn.(*net.TCPConn); ok {
+			tcpConn.SetLinger(0)
+		} else {
+			return fmt.Errorf("not a tcp connection unexpectedly")
+		}
+
+		conn.Close()
+	} else {
+		conn, err := net.Dial("tcp6", fmt.Sprintf("[%s]:9092", ip))
+		// Since we connect to a random IP, this will most likely fail.
+		// In the unlikely case where it connects successfully, we close
+		// the connection to avoid a leak.
+		if err == nil {
+			conn.Close()
+		}
+	}
+
+	return nil
+}
+
+// checkAndUpdateCurrentOffset checks the value for the current offset stored
+// in the eBPF map against the expected value, incrementing the offset if it
+// doesn't match, or going to the next field to guess if it does
+func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTracerStatus, expected *fieldValues) error {
+	// get the updated map value so we can check if the current offset is
+	// the right one
+	if err := module.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status)); err != nil {
+		return fmt.Errorf("error reading tcptracer_status: %v", err)
+	}
+
 	if status.status == checked {
 		switch status.what {
 		case guessSaddr:
@@ -197,6 +264,11 @@ func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues)
 		}
 	}
 
+	// update the map with the new offset/field to check
+	if err := module.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status), 0); err != nil {
+		return fmt.Errorf("error updating tcptracer_status: %v", err)
+	}
+
 	return nil
 }
 
@@ -215,10 +287,6 @@ func checkAndUpdateCurrentOffset(status *tcpTracerStatus, expected *fieldValues)
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
 func Guess(b *elf.Module) error {
-	listenIP := "127.0.0.2"
-	listenPort := uint16(9091)
-	bindAddress := fmt.Sprintf("%s:%d", listenIP, listenPort)
-
 	currentNetns, err := ownNetNS()
 	if err != nil {
 		return fmt.Errorf("error getting current netns: %v", err)
@@ -226,7 +294,6 @@ func Guess(b *elf.Module) error {
 
 	mp := b.Map("tcptracer_status")
 
-	var zero uint64
 	pidTgid := uint64(os.Getpid()<<32 | syscall.Gettid())
 
 	status := &tcpTracerStatus{
@@ -247,6 +314,7 @@ func Guess(b *elf.Module) error {
 	<-listenCompleted
 	defer close(closeListen)
 
+	// initialize map
 	if err := b.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status), 0); err != nil {
 		return fmt.Errorf("error initializing tcptracer_status map: %v", err)
 	}
@@ -264,65 +332,12 @@ func Guess(b *elf.Module) error {
 	}
 
 	for status.status != ready {
-		// for ipv6, we don't need the source port because we already guessed
-		// it doing ipv4 connections so we use a random destination address and
-		// try to connect to it
-		expected.daddrIPv6[0] = rand.Uint32()
-		expected.daddrIPv6[1] = rand.Uint32()
-		expected.daddrIPv6[2] = rand.Uint32()
-		expected.daddrIPv6[3] = rand.Uint32()
-
-		ip := ipv6FromUint32Arr(expected.daddrIPv6)
-
-		if status.what != guessDaddrIPv6 {
-			conn, err := net.Dial("tcp4", bindAddress)
-			if err != nil {
-				return fmt.Errorf("error dialing %q: %v\n", bindAddress, err)
-			}
-
-			// get the source port assigned by the kernel
-			sport, err := strconv.Atoi(strings.Split(conn.LocalAddr().String(), ":")[1])
-			if err != nil {
-				return fmt.Errorf("error converting source port: %v", err)
-			}
-
-			expected.sport = htons(uint16(sport))
-
-			// set SO_LINGER to 0 so the connection state after closing is
-			// CLOSE instead of TIME_WAIT. In this way, they will disappear
-			// from the conntrack table after around 10 seconds instead of 2
-			// minutes
-			if tcpConn, ok := conn.(*net.TCPConn); ok {
-				tcpConn.SetLinger(0)
-			} else {
-				return fmt.Errorf("not a tcp connection unexpectedly")
-			}
-
-			conn.Close()
-		} else {
-			conn, err := net.Dial("tcp6", fmt.Sprintf("[%s]:9092", ip))
-			// Since we connect to a random IP, this will most likely fail.
-			// In the unlikely case where it connects successfully, we close
-			// the connection to avoid a leak.
-			if err == nil {
-				conn.Close()
-			}
+		if err := tryCurrentOffset(b, mp, status, expected); err != nil {
+			return nil
 		}
 
-		// get the updated map value so we can check if the current offset is
-		// the right one
-		err = b.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status))
-		if err != nil {
-			return fmt.Errorf("error reading tcptracer_status: %v", err)
-		}
-
-		if err := checkAndUpdateCurrentOffset(status, expected); err != nil {
+		if err := checkAndUpdateCurrentOffset(b, mp, status, expected); err != nil {
 			return err
-		}
-
-		// update the map with the new offset/field to check
-		if err := b.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status), 0); err != nil {
-			return fmt.Errorf("error updating tcptracer_status: %v", err)
 		}
 
 		// stop at a reasonable offset so we don't run forever
