@@ -189,16 +189,16 @@ struct tcptracer_status_t {
 	u64 offset_family;
 	u64 offset_daddr_ipv6;
 
-	u8 err;
+	u64 err;
 
+	u32 daddr_ipv6[4];
+	u32 netns;
 	u32 saddr;
 	u32 daddr;
 	u16 sport;
 	u16 dport;
-	u32 netns;
 	u16 family;
-	u32 daddr_ipv6[4];
-	char padding[6];
+	u16 padding;
 };
 
 struct bpf_map_def SEC("maps/tcptracer_status") tcptracer_status = {

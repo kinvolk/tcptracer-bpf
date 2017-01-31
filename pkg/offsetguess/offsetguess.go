@@ -18,7 +18,38 @@ import (
 	"github.com/weaveworks/tcptracer-bpf/pkg/byteorder"
 )
 
-type tcpTracerState uint64
+/*
+#include <linux/types.h>
+
+struct tcptracer_status_t {
+	__u64 status;
+
+	__u64 pidTgid;
+	__u64 what;
+	__u64 offsetSaddr;
+	__u64 offsetDaddr;
+	__u64 offsetSport;
+	__u64 offsetDport;
+	__u64 offsetNetns;
+	__u64 offsetIno;
+	__u64 offsetFamily;
+	__u64 offsetDaddrIPv6;
+
+	__u64 err;
+
+	__u32 daddrIPv6[4];
+	__u32 netns;
+	__u32 saddr;
+	__u32 daddr;
+	__u16 sport;
+	__u16 dport;
+	__u16 family;
+	__u16 padding;
+};
+*/
+import "C"
+
+type tcpTracerStatus C.struct_tcptracer_status_t
 
 const (
 	threshold         = 200
@@ -26,16 +57,14 @@ const (
 )
 
 const (
-	uninitialized tcpTracerState = iota
+	uninitialized C.__u64 = iota
 	checking
 	checked
 	ready
 )
 
-type guessWhat uint64
-
 const (
-	guessSaddr guessWhat = iota
+	guessSaddr C.__u64 = iota
 	guessDaddr
 	guessFamily
 	guessSport
@@ -51,28 +80,6 @@ var zero uint64
 type freePort struct {
 	port uint16
 	err  error
-}
-
-type tcpTracerStatus struct {
-	status          tcpTracerState
-	pidTgid         uint64
-	what            guessWhat
-	offsetSaddr     uint64
-	offsetDaddr     uint64
-	offsetSport     uint64
-	offsetDport     uint64
-	offsetNetns     uint64
-	offsetIno       uint64
-	offsetFamily    uint64
-	offsetDaddrIPv6 uint64
-	err             byte
-	saddr           uint32
-	daddr           uint32
-	sport           uint16
-	dport           uint16
-	netns           uint32
-	family          uint16
-	daddrIPv6       [4]uint32
 }
 
 type fieldValues struct {
@@ -110,9 +117,9 @@ func listenV4(listenCompleted chan freePort, closeListen chan struct{}) {
 	}
 }
 
-func compareIPv6(a, b [4]uint32) bool {
+func compareIPv6(a [4]C.__u32, b [4]uint32) bool {
 	for i := 0; i < 4; i++ {
-		if a[i] != b[i] {
+		if a[i] != C.__u32(b[i]) {
 			return false
 		}
 	}
@@ -210,25 +217,25 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 
 	switch status.what {
 	case guessSaddr:
-		if status.saddr == uint32(expected.saddr) {
+		if status.saddr == C.__u32(expected.saddr) {
 			status.what = guessDaddr
 			status.status = checking
 		} else {
 			status.offsetSaddr++
 			status.status = checking
-			status.saddr = uint32(expected.saddr)
+			status.saddr = C.__u32(expected.saddr)
 		}
 	case guessDaddr:
-		if status.daddr == uint32(expected.daddr) {
+		if status.daddr == C.__u32(expected.daddr) {
 			status.what = guessFamily
 			status.status = checking
 		} else {
 			status.offsetDaddr++
 			status.status = checking
-			status.daddr = uint32(expected.daddr)
+			status.daddr = C.__u32(expected.daddr)
 		}
 	case guessFamily:
-		if status.family == uint16(expected.family) {
+		if status.family == C.__u16(expected.family) {
 			status.what = guessSport
 			status.status = checking
 			// we know the sport ((struct inet_sock)->inet_sport) is
@@ -239,7 +246,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 			status.status = checking
 		}
 	case guessSport:
-		if status.sport == htons(expected.sport) {
+		if status.sport == C.__u16(htons(expected.sport)) {
 			status.what = guessDport
 			status.status = checking
 		} else {
@@ -247,7 +254,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 			status.status = checking
 		}
 	case guessDport:
-		if status.dport == htons(expected.dport) {
+		if status.dport == C.__u16(htons(expected.dport)) {
 			status.what = guessNetns
 			status.status = checking
 		} else {
@@ -255,7 +262,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 			status.status = checking
 		}
 	case guessNetns:
-		if status.netns == expected.netns {
+		if status.netns == C.__u32(expected.netns) {
 			status.what = guessDaddrIPv6
 			status.status = checking
 		} else {
@@ -314,7 +321,7 @@ func Guess(b *elf.Module) error {
 
 	status := &tcpTracerStatus{
 		status:  checking,
-		pidTgid: pidTgid,
+		pidTgid: C.__u64(pidTgid),
 	}
 
 	// if we already have the offsets, just return
