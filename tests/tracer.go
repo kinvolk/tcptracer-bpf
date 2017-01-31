@@ -8,9 +8,6 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/iovisor/gobpf/elf"
-
-	"github.com/weaveworks/tcptracer-bpf/pkg/byteorder"
 	"github.com/weaveworks/tcptracer-bpf/pkg/event"
 	"github.com/weaveworks/tcptracer-bpf/pkg/tracer"
 )
@@ -87,71 +84,15 @@ func main() {
 	}
 	fileName := os.Args[1]
 
-	b := elf.NewModule(fileName)
-	if b == nil {
-		fmt.Fprintf(os.Stderr, "System doesn't support BPF\n")
-		os.Exit(1)
-	}
-
-	err := b.Load()
+	t, err := tracer.NewTracerFromFile(fileName, tcpEventCbV4, tcpEventCbV6)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-
-	err = b.EnableKprobes()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-
-	channelV4 := make(chan []byte)
-	channelV6 := make(chan []byte)
-
-	perfMapIPV4, err := tracer.InitializeIPv4(b, channelV4)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to init perf map for IPv4 events: %s\n", err)
-		os.Exit(1)
-	}
-
-	perfMapIPV6, err := tracer.InitializeIPv6(b, channelV6)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to init perf map for IPv6 events: %s\n", err)
 		os.Exit(1)
 	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
 
-	go func() {
-		var event event.TcpV4
-		for {
-			data := <-channelV4
-			err := binary.Read(bytes.NewBuffer(data), byteorder.NativeEndian, &event)
-			if err != nil {
-				fmt.Printf("failed to decode received data: %s\n", err)
-				continue
-			}
-			tcpEventCbV4(event)
-		}
-	}()
-
-	go func() {
-		var event event.TcpV6
-		for {
-			data := <-channelV6
-			err := binary.Read(bytes.NewBuffer(data), byteorder.NativeEndian, &event)
-			if err != nil {
-				fmt.Printf("failed to decode received data: %s\n", err)
-				continue
-			}
-			tcpEventCbV6(event)
-		}
-	}()
-
-	perfMapIPV4.PollStart()
-	perfMapIPV6.PollStart()
 	<-sig
-	perfMapIPV4.PollStop()
-	perfMapIPV6.PollStop()
+	t.Stop()
 }
