@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
 
@@ -16,65 +13,27 @@ var lastTimestampV4 uint64
 var lastTimestampV6 uint64
 
 func tcpEventCbV4(e event.TcpV4) {
-	timestamp := uint64(e.Timestamp)
-	cpu := e.CPU
-	typ := event.EventType(e.Type)
-	pid := e.Pid & 0xffffffff
-	comm := string(e.Comm[:bytes.IndexByte(e.Comm[:], 0)])
+	fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n",
+		e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS)
 
-	saddrbuf := make([]byte, 4)
-	daddrbuf := make([]byte, 4)
-
-	binary.LittleEndian.PutUint32(saddrbuf, uint32(e.SAddr))
-	binary.LittleEndian.PutUint32(daddrbuf, uint32(e.DAddr))
-
-	sIP := net.IPv4(saddrbuf[0], saddrbuf[1], saddrbuf[2], saddrbuf[3])
-	dIP := net.IPv4(daddrbuf[0], daddrbuf[1], daddrbuf[2], daddrbuf[3])
-
-	sport := e.SPort
-	dport := e.DPort
-	netns := e.NetNS
-
-	fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n", timestamp, cpu, typ, pid, comm, sIP, sport, dIP, dport, netns)
-
-	if lastTimestampV4 > timestamp {
+	if lastTimestampV4 > e.Timestamp {
 		fmt.Printf("ERROR: late event!\n")
 		os.Exit(1)
 	}
 
-	lastTimestampV4 = timestamp
+	lastTimestampV4 = e.Timestamp
 }
 
 func tcpEventCbV6(e event.TcpV6) {
-	timestamp := uint64(e.Timestamp)
-	cpu := e.CPU
-	typ := event.EventType(e.Type)
-	pid := e.Pid & 0xffffffff
-	comm := string(e.Comm[:bytes.IndexByte(e.Comm[:], 0)])
+	fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n",
+		e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS)
 
-	saddrbuf := make([]byte, 16)
-	daddrbuf := make([]byte, 16)
-
-	binary.LittleEndian.PutUint64(saddrbuf, e.SAddrH)
-	binary.LittleEndian.PutUint64(saddrbuf[8:], e.SAddrL)
-	binary.LittleEndian.PutUint64(daddrbuf, e.DAddrH)
-	binary.LittleEndian.PutUint64(daddrbuf[8:], e.DAddrL)
-
-	sIP := net.IP(saddrbuf)
-	dIP := net.IP(daddrbuf)
-
-	sport := e.SPort
-	dport := e.DPort
-	netns := e.NetNS
-
-	fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n", timestamp, cpu, typ, pid, comm, sIP, sport, dIP, dport, netns)
-
-	if lastTimestampV6 > timestamp {
+	if lastTimestampV6 > e.Timestamp {
 		fmt.Printf("ERROR: late event!\n")
 		os.Exit(1)
 	}
 
-	lastTimestampV6 = timestamp
+	lastTimestampV6 = e.Timestamp
 }
 
 func main() {

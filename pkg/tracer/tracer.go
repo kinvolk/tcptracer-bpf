@@ -3,13 +3,9 @@
 package tracer
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
-	"os"
 
 	bpflib "github.com/iovisor/gobpf/elf"
-	"github.com/weaveworks/tcptracer-bpf/pkg/byteorder"
 	"github.com/weaveworks/tcptracer-bpf/pkg/event"
 	"github.com/weaveworks/tcptracer-bpf/pkg/offsetguess"
 )
@@ -50,28 +46,16 @@ func NewTracerFromFile(fileName string, tcpEventCbV4 func(event.TcpV4), tcpEvent
 	}
 
 	go func() {
-		var event event.TcpV4
 		for {
 			data := <-channelV4
-			err := binary.Read(bytes.NewBuffer(data), byteorder.NativeEndian, &event)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "failed to decode received data: %s\n", err)
-				continue
-			}
-			tcpEventCbV4(event)
+			tcpEventCbV4(event.TcpV4ToGo(&data))
 		}
 	}()
 
 	go func() {
-		var event event.TcpV6
 		for {
 			data := <-channelV6
-			err := binary.Read(bytes.NewBuffer(data), byteorder.NativeEndian, &event)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "failed to decode received data: %s\n", err)
-				continue
-			}
-			tcpEventCbV6(event)
+			tcpEventCbV6(event.TcpV6ToGo(&data))
 		}
 	}()
 
