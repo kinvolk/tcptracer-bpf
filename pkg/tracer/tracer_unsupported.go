@@ -5,13 +5,14 @@ package tracer
 import (
 	"fmt"
 
-	bpflib "github.com/iovisor/gobpf/elf"
+	"github.com/weaveworks/tcptracer-bpf/pkg/event"
 )
 
-func InitializeIPv4(module *bpflib.Module, eventChan chan []byte) (*bpflib.PerfMap, error) {
+type Tracer struct{}
+
+func NewTracerFromFile(fileName string, tcpEventCbV4 func(event.TcpV4), tcpEventCbV6 func(event.TcpV6)) (*Tracer, error) {
 	return nil, fmt.Errorf("not supported on non-Linux systems")
 }
 
-func InitializeIPv6(module *bpflib.Module, eventChan chan []byte) (*bpflib.PerfMap, error) {
-	return nil, fmt.Errorf("not supported on non-Linux systems")
+func (t *Tracer) Stop() {
 }
