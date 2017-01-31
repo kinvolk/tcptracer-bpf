@@ -4,80 +4,11 @@
 #include <linux/version.h>
 #include <linux/bpf.h>
 #include "bpf_helpers.h"
+#include "tcptracer-bpf.h"
 
 #include <net/sock.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
-
-#define TCP_EVENT_TYPE_CONNECT 1
-#define TCP_EVENT_TYPE_ACCEPT  2
-#define TCP_EVENT_TYPE_CLOSE   3
-
-#define GUESS_SADDR      0
-#define GUESS_DADDR      1
-#define GUESS_FAMILY     2
-#define GUESS_SPORT      3
-#define GUESS_DPORT      4
-#define GUESS_NETNS      5
-#define GUESS_DADDR_IPV6 6
-
-struct tcp_ipv4_event_t {
-	/* timestamp must be the first field, the sorting depends on it */
-	u64 timestamp;
-	u64 cpu;
-	u32 type;
-	u32 pid;
-	char comm[TASK_COMM_LEN];
-	u32 saddr;
-	u32 daddr;
-	u16 sport;
-	u16 dport;
-	u32 netns;
-};
-
-struct tcp_ipv6_event_t {
-	/* timestamp must be the first field, the sorting depends on it */
-	u64 timestamp;
-	u64 cpu;
-	u32 type;
-	u32 pid;
-	char comm[TASK_COMM_LEN];
-	/* Using the type unsigned __int128 generates an error in the ebpf verifier */
-	u64 saddr_h;
-	u64 saddr_l;
-	u64 daddr_h;
-	u64 daddr_l;
-	u16 sport;
-	u16 dport;
-	u32 netns;
-};
-
-// tcp_set_state doesn't run in the context of the process that initiated the
-// connection so we need to store a map TUPLE -> PID to send the right PID on
-// the event
-struct ipv4_tuple_t {
-	u32 saddr;
-	u32 daddr;
-	u16 sport;
-	u16 dport;
-	u32 netns;
-};
-
-struct ipv6_tuple_t {
-	/* Using the type unsigned __int128 generates an error in the ebpf verifier */
-	u64 saddr_h;
-	u64 saddr_l;
-	u64 daddr_h;
-	u64 daddr_l;
-	u16 sport;
-	u16 dport;
-	u32 netns;
-};
-
-struct pid_comm_t {
-	u64 pid;
-	char comm[TASK_COMM_LEN];
-};
 
 /* This is a key/value store with the keys being the cpu number
  * and the values being a perf file descriptor.
@@ -169,37 +100,6 @@ static bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr
                         (daddr_h == 0 && ((u32)daddr_l == 0xFFFF0000)));
 	}
 }
-
-#define TCPTRACER_STATUS_UNINITIALIZED 0
-#define TCPTRACER_STATUS_CHECKING      1
-#define TCPTRACER_STATUS_CHECKED       2
-#define TCPTRACER_STATUS_READY         3
-struct tcptracer_status_t {
-	u64 status;
-
-	/* checking */
-	u64 pid_tgid;
-	u64 what;
-	u64 offset_saddr;
-	u64 offset_daddr;
-	u64 offset_sport;
-	u64 offset_dport;
-	u64 offset_netns;
-	u64 offset_ino;
-	u64 offset_family;
-	u64 offset_daddr_ipv6;
-
-	u64 err;
-
-	u32 daddr_ipv6[4];
-	u32 netns;
-	u32 saddr;
-	u32 daddr;
-	u16 sport;
-	u16 dport;
-	u16 family;
-	u16 padding;
-};
 
 struct bpf_map_def SEC("maps/tcptracer_status") tcptracer_status = {
 	.type = BPF_MAP_TYPE_HASH,

@@ -19,33 +19,7 @@ import (
 )
 
 /*
-#include <linux/types.h>
-
-struct tcptracer_status_t {
-	__u64 status;
-
-	__u64 pidTgid;
-	__u64 what;
-	__u64 offsetSaddr;
-	__u64 offsetDaddr;
-	__u64 offsetSport;
-	__u64 offsetDport;
-	__u64 offsetNetns;
-	__u64 offsetIno;
-	__u64 offsetFamily;
-	__u64 offsetDaddrIPv6;
-
-	__u64 err;
-
-	__u32 daddrIPv6[4];
-	__u32 netns;
-	__u32 saddr;
-	__u32 daddr;
-	__u16 sport;
-	__u16 dport;
-	__u16 family;
-	__u16 padding;
-};
+#include "../../tcptracer-bpf.h"
 */
 import "C"
 
@@ -221,7 +195,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 			status.what = guessDaddr
 			status.status = checking
 		} else {
-			status.offsetSaddr++
+			status.offset_saddr++
 			status.status = checking
 			status.saddr = C.__u32(expected.saddr)
 		}
@@ -230,7 +204,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 			status.what = guessFamily
 			status.status = checking
 		} else {
-			status.offsetDaddr++
+			status.offset_daddr++
 			status.status = checking
 			status.daddr = C.__u32(expected.daddr)
 		}
@@ -240,9 +214,9 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 			status.status = checking
 			// we know the sport ((struct inet_sock)->inet_sport) is
 			// after the family field, so we start from there
-			status.offsetSport = status.offsetFamily
+			status.offset_sport = status.offset_family
 		} else {
-			status.offsetFamily++
+			status.offset_family++
 			status.status = checking
 		}
 	case guessSport:
@@ -250,7 +224,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 			status.what = guessDport
 			status.status = checking
 		} else {
-			status.offsetSport++
+			status.offset_sport++
 			status.status = checking
 		}
 	case guessDport:
@@ -258,7 +232,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 			status.what = guessNetns
 			status.status = checking
 		} else {
-			status.offsetDport++
+			status.offset_dport++
 			status.status = checking
 		}
 	case guessNetns:
@@ -266,21 +240,21 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 			status.what = guessDaddrIPv6
 			status.status = checking
 		} else {
-			status.offsetIno++
-			// go to the next offsetNetns if we get an error
-			if status.err != 0 || status.offsetIno >= threshold {
-				status.offsetIno = 0
-				status.offsetNetns++
+			status.offset_ino++
+			// go to the next offset_netns if we get an error
+			if status.err != 0 || status.offset_ino >= threshold {
+				status.offset_ino = 0
+				status.offset_netns++
 			}
 			status.status = checking
 		}
 	case guessDaddrIPv6:
-		if compareIPv6(status.daddrIPv6, expected.daddrIPv6) {
+		if compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
 			// at this point, we've guessed all the offsets we need,
 			// set the status to "ready"
 			status.status = ready
 		} else {
-			status.offsetDaddrIPv6++
+			status.offset_daddr_ipv6++
 			status.status = checking
 		}
 	default:
@@ -320,8 +294,8 @@ func Guess(b *elf.Module) error {
 	pidTgid := uint64(os.Getpid()<<32 | syscall.Gettid())
 
 	status := &tcpTracerStatus{
-		status:  checking,
-		pidTgid: C.__u64(pidTgid),
+		status:   checking,
+		pid_tgid: C.__u64(pidTgid),
 	}
 
 	// if we already have the offsets, just return
@@ -371,10 +345,10 @@ func Guess(b *elf.Module) error {
 		}
 
 		// stop at a reasonable offset so we don't run forever
-		if status.offsetSaddr >= threshold || status.offsetDaddr >= threshold ||
-			status.offsetSport >= thresholdInetSock || status.offsetDport >= threshold ||
-			status.offsetNetns >= threshold || status.offsetFamily >= threshold ||
-			status.offsetDaddrIPv6 >= 200 {
+		if status.offset_saddr >= threshold || status.offset_daddr >= threshold ||
+			status.offset_sport >= thresholdInetSock || status.offset_dport >= threshold ||
+			status.offset_netns >= threshold || status.offset_family >= threshold ||
+			status.offset_daddr_ipv6 >= 200 {
 			return fmt.Errorf("overflow, bailing out")
 		}
 	}
