@@ -46,10 +46,12 @@ const (
 
 const listenIP = "127.0.0.2"
 
-// port 0 means we let the kernel choose a free port
-var listenPort uint16 = 0
 var zero uint64
-var bindAddress string
+
+type freePort struct {
+	port uint16
+	err  error
+}
 
 type tcpTracerStatus struct {
 	status          tcpTracerState
@@ -83,22 +85,22 @@ type fieldValues struct {
 	daddrIPv6 [4]uint32
 }
 
-func listen(netType string, listenCompleted chan error, closeListen chan struct{}) {
-	url := fmt.Sprintf("%s:%d", listenIP, listenPort)
-	l, err := net.Listen(netType, url)
+func listenV4(listenCompleted chan freePort, closeListen chan struct{}) {
+	// port 0 means we let the kernel choose a free port
+	url := fmt.Sprintf("%s:0", listenIP)
+	l, err := net.Listen("tcp4", url)
 	if err != nil {
-		listenCompleted <- err
+		listenCompleted <- freePort{port: 0, err: err}
 		return
 	}
 
 	lport, err := strconv.Atoi(strings.Split(l.Addr().String(), ":")[1])
 	if err != nil {
-		listenCompleted <- err
+		listenCompleted <- freePort{port: 0, err: err}
 		return
 	}
-	listenPort = uint16(lport)
-	bindAddress = fmt.Sprintf("%s:%d", listenIP, lport)
 
+	listenCompleted <- freePort{port: uint16(lport), err: nil}
 	close(listenCompleted)
 
 	select {
@@ -153,6 +155,7 @@ func tryCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTracerStatus, 
 
 	ip := ipv6FromUint32Arr(expected.daddrIPv6)
 
+	bindAddress := fmt.Sprintf("%s:%d", listenIP, expected.dport)
 	if status.what != guessDaddrIPv6 {
 		conn, err := net.Dial("tcp4", bindAddress)
 		if err != nil {
@@ -165,7 +168,7 @@ func tryCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTracerStatus, 
 			return fmt.Errorf("error converting source port: %v", err)
 		}
 
-		expected.sport = htons(uint16(sport))
+		expected.sport = uint16(sport)
 
 		// set SO_LINGER to 0 so the connection state after closing is
 		// CLOSE instead of TIME_WAIT. In this way, they will disappear
@@ -201,78 +204,80 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		return fmt.Errorf("error reading tcptracer_status: %v", err)
 	}
 
-	if status.status == checked {
-		switch status.what {
-		case guessSaddr:
-			if status.saddr == uint32(expected.saddr) {
-				status.what = guessDaddr
-				status.status = checking
-			} else {
-				status.offsetSaddr++
-				status.status = checking
-				status.saddr = uint32(expected.saddr)
-			}
-		case guessDaddr:
-			if status.daddr == uint32(expected.daddr) {
-				status.what = guessFamily
-				status.status = checking
-			} else {
-				status.offsetDaddr++
-				status.status = checking
-				status.daddr = uint32(expected.daddr)
-			}
-		case guessFamily:
-			if status.family == uint16(expected.family) {
-				status.what = guessSport
-				status.status = checking
-				// we know the sport ((struct inet_sock)->inet_sport) is
-				// after the family field, so we start from there
-				status.offsetSport = status.offsetFamily
-			} else {
-				status.offsetFamily++
-				status.status = checking
-			}
-		case guessSport:
-			if status.sport == uint16(expected.sport) {
-				status.what = guessDport
-				status.status = checking
-			} else {
-				status.offsetSport++
-				status.status = checking
-			}
-		case guessDport:
-			if status.dport == expected.dport {
-				status.what = guessNetns
-				status.status = checking
-			} else {
-				status.offsetDport++
-				status.status = checking
-			}
-		case guessNetns:
-			if status.netns == expected.netns {
-				status.what = guessDaddrIPv6
-				status.status = checking
-			} else {
-				status.offsetIno++
-				// go to the next offsetNetns if we get an error
-				if status.err != 0 || status.offsetIno >= threshold {
-					status.offsetIno = 0
-					status.offsetNetns++
-				}
-				status.status = checking
-			}
-		case guessDaddrIPv6:
-			if compareIPv6(status.daddrIPv6, expected.daddrIPv6) {
-				// at this point, we've guessed all the offsets we need,
-				// set the status to "ready"
-				status.status = ready
-			} else {
-				status.offsetDaddrIPv6++
-				status.status = checking
-			}
-		default:
-			return fmt.Errorf("unexpected field")
+	if status.status != checked {
+		return fmt.Errorf("invalid guessing state")
+	}
+
+	switch status.what {
+	case guessSaddr:
+		if status.saddr == uint32(expected.saddr) {
+			status.what = guessDaddr
+			status.status = checking
+		} else {
+			status.offsetSaddr++
+			status.status = checking
+			status.saddr = uint32(expected.saddr)
 		}
+	case guessDaddr:
+		if status.daddr == uint32(expected.daddr) {
+			status.what = guessFamily
+			status.status = checking
+		} else {
+			status.offsetDaddr++
+			status.status = checking
+			status.daddr = uint32(expected.daddr)
+		}
+	case guessFamily:
+		if status.family == uint16(expected.family) {
+			status.what = guessSport
+			status.status = checking
+			// we know the sport ((struct inet_sock)->inet_sport) is
+			// after the family field, so we start from there
+			status.offsetSport = status.offsetFamily
+		} else {
+			status.offsetFamily++
+			status.status = checking
+		}
+	case guessSport:
+		if status.sport == htons(expected.sport) {
+			status.what = guessDport
+			status.status = checking
+		} else {
+			status.offsetSport++
+			status.status = checking
+		}
+	case guessDport:
+		if status.dport == htons(expected.dport) {
+			status.what = guessNetns
+			status.status = checking
+		} else {
+			status.offsetDport++
+			status.status = checking
+		}
+	case guessNetns:
+		if status.netns == expected.netns {
+			status.what = guessDaddrIPv6
+			status.status = checking
+		} else {
+			status.offsetIno++
+			// go to the next offsetNetns if we get an error
+			if status.err != 0 || status.offsetIno >= threshold {
+				status.offsetIno = 0
+				status.offsetNetns++
+			}
+			status.status = checking
+		}
+	case guessDaddrIPv6:
+		if compareIPv6(status.daddrIPv6, expected.daddrIPv6) {
+			// at this point, we've guessed all the offsets we need,
+			// set the status to "ready"
+			status.status = ready
+		} else {
+			status.offsetDaddrIPv6++
+			status.status = checking
+		}
+	default:
+		return fmt.Errorf("unexpected field to guess")
 	}
 
 	// update the map with the new offset/field to check
@@ -288,7 +293,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 // stored in the `tcptracer_status` map as used by the module.
 //
 // To guess the offsets, we create connections from localhost (127.0.0.1) to
-// 127.0.0.2:9091, where we have a server listening. We store the current
+// 127.0.0.2:$PORT, where we have a server listening. We store the current
 // possible offset and expected value of each field in a eBPF map. Each
 // connection will trigger the eBPF program attached to tcp_v{4,6}_connect
 // where, for each field to guess, we store the value of
@@ -318,15 +323,17 @@ func Guess(b *elf.Module) error {
 		return nil
 	}
 
-	listenCompleted := make(chan error)
+	listenCompleted := make(chan freePort)
 	closeListen := make(chan struct{})
 
-	go listen("tcp4", listenCompleted, closeListen)
+	var listenPort uint16
+	go listenV4(listenCompleted, closeListen)
 	select {
-	case err := <-listenCompleted:
-		if err != nil {
+	case p := <-listenCompleted:
+		if p.err != nil {
 			return err
 		}
+		listenPort = p.port
 	}
 	defer close(closeListen)
 
@@ -342,14 +349,14 @@ func Guess(b *elf.Module) error {
 		daddr: 0x0200007F,
 		// will be set later
 		sport:  0,
-		dport:  htons(listenPort),
+		dport:  listenPort,
 		netns:  uint32(currentNetns),
 		family: syscall.AF_INET,
 	}
 
 	for status.status != ready {
 		if err := tryCurrentOffset(b, mp, status, expected); err != nil {
-			return nil
+			return err
 		}
 
 		if err := checkAndUpdateCurrentOffset(b, mp, status, expected); err != nil {
