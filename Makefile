@@ -17,7 +17,9 @@ build-ebpf-object:
 	$(SUDO) docker run --rm -e DEBUG=$(DEBUG) \
 		-e CIRCLE_BUILD_URL=$(CIRCLE_BUILD_URL) \
 		-v $(PWD):/src:ro \
-		-v $(PWD)/ebpf:/dist/ $(DOCKER_IMAGE) \
+		-v $(PWD)/ebpf:/dist/ \
+		--workdir=/src \
+		$(DOCKER_IMAGE) \
 		make -f ebpf.mk build
 	sudo chown -R $(UID):$(UID) ebpf
 
