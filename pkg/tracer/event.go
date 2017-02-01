@@ -1,4 +1,4 @@
-package event
+package tracer
 
 import (
 	"encoding/binary"
@@ -60,7 +60,7 @@ type TcpV6 struct {
 	NetNS     uint32
 }
 
-func TcpV4ToGo(data *[]byte) (ret TcpV4) {
+func tcpV4ToGo(data *[]byte) (ret TcpV4) {
 	eventC := (*C.struct_tcp_ipv4_event_t)(unsafe.Pointer(&(*data)[0]))
 
 	ret.Timestamp = uint64(eventC.timestamp)
@@ -85,7 +85,7 @@ func TcpV4ToGo(data *[]byte) (ret TcpV4) {
 	return
 }
 
-func TcpV6ToGo(data *[]byte) (ret TcpV6) {
+func tcpV6ToGo(data *[]byte) (ret TcpV6) {
 	eventC := (*C.struct_tcp_ipv6_event_t)(unsafe.Pointer(&(*data)[0]))
 
 	ret.Timestamp = uint64(eventC.timestamp)

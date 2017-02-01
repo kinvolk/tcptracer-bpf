@@ -5,14 +5,13 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/weaveworks/tcptracer-bpf/pkg/event"
 	"github.com/weaveworks/tcptracer-bpf/pkg/tracer"
 )
 
 var lastTimestampV4 uint64
 var lastTimestampV6 uint64
 
-func tcpEventCbV4(e event.TcpV4) {
+func tcpEventCbV4(e tracer.TcpV4) {
 	fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n",
 		e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS)
 
@@ -24,7 +23,7 @@ func tcpEventCbV4(e event.TcpV4) {
 	lastTimestampV4 = e.Timestamp
 }
 
-func tcpEventCbV6(e event.TcpV6) {
+func tcpEventCbV6(e tracer.TcpV6) {
 	fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n",
 		e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS)
 

@@ -1,6 +1,6 @@
 // +build !linux
 
-package offsetguess
+package tracer
 
 import (
 	"fmt"
@@ -8,6 +8,6 @@ import (
 	"github.com/iovisor/gobpf/elf"
 )
 
-func Guess(b *elf.Module) error {
+func guess(b *elf.Module) error {
 	return fmt.Errorf("not supported on non-Linux systems")
 }

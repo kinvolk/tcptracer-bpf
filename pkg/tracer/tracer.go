@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	bpflib "github.com/iovisor/gobpf/elf"
-	"github.com/weaveworks/tcptracer-bpf/pkg/event"
-	"github.com/weaveworks/tcptracer-bpf/pkg/offsetguess"
 )
 
 type Tracer struct {
@@ -16,7 +14,7 @@ type Tracer struct {
 	perfMapIPV6 *bpflib.PerfMap
 }
 
-func NewTracerFromFile(fileName string, tcpEventCbV4 func(event.TcpV4), tcpEventCbV6 func(event.TcpV6)) (*Tracer, error) {
+func NewTracerFromFile(fileName string, tcpEventCbV4 func(TcpV4), tcpEventCbV6 func(TcpV6)) (*Tracer, error) {
 	m := bpflib.NewModule(fileName)
 	if m == nil {
 		return nil, fmt.Errorf("BPF not supported")
@@ -48,14 +46,14 @@ func NewTracerFromFile(fileName string, tcpEventCbV4 func(event.TcpV4), tcpEvent
 	go func() {
 		for {
 			data := <-channelV4
-			tcpEventCbV4(event.TcpV4ToGo(&data))
+			tcpEventCbV4(tcpV4ToGo(&data))
 		}
 	}()
 
 	go func() {
 		for {
 			data := <-channelV6
-			tcpEventCbV6(event.TcpV6ToGo(&data))
+			tcpEventCbV6(tcpV6ToGo(&data))
 		}
 	}()
 
@@ -75,7 +73,7 @@ func (t *Tracer) Stop() {
 }
 
 func initialize(module *bpflib.Module, eventMapName string, eventChan chan []byte) (*bpflib.PerfMap, error) {
-	if err := offsetguess.Guess(module); err != nil {
+	if err := guess(module); err != nil {
 		return nil, fmt.Errorf("error guessing offsets: %v", err)
 	}
 

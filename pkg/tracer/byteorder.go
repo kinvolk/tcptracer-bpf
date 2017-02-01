@@ -1,11 +1,11 @@
-package byteorder
+package tracer
 
 import (
 	"encoding/binary"
 	"unsafe"
 )
 
-var NativeEndian binary.ByteOrder
+var nativeEndian binary.ByteOrder
 
 // In lack of binary.NativeEndian ...
 func init() {
@@ -14,8 +14,8 @@ func init() {
 	pb := (*byte)(u)
 	b := *pb
 	if b == 0x04 {
-		NativeEndian = binary.LittleEndian
+		nativeEndian = binary.LittleEndian
 	} else {
-		NativeEndian = binary.BigEndian
+		nativeEndian = binary.BigEndian
 	}
 }

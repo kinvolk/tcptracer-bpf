@@ -1,6 +1,6 @@
 // +build linux
 
-package offsetguess
+package tracer
 
 import (
 	"encoding/binary"
@@ -14,8 +14,6 @@ import (
 	"unsafe"
 
 	"github.com/iovisor/gobpf/elf"
-
-	"github.com/weaveworks/tcptracer-bpf/pkg/byteorder"
 )
 
 /*
@@ -119,7 +117,7 @@ func ipv6FromUint32Arr(ipv6Addr [4]uint32) net.IP {
 func htons(a uint16) uint16 {
 	var arr [2]byte
 	binary.BigEndian.PutUint16(arr[:], a)
-	return byteorder.NativeEndian.Uint16(arr[:])
+	return nativeEndian.Uint16(arr[:])
 }
 
 // tryCurrentOffset creates a IPv4 or IPv6 connection so the corresponding
@@ -269,7 +267,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 	return nil
 }
 
-// Guess expects elf.Module to hold a tcptracer-bpf object and initializes the
+// guess expects elf.Module to hold a tcptracer-bpf object and initializes the
 // tracer by guessing the right struct sock kernel struct offsets. Results are
 // stored in the `tcptracer_status` map as used by the module.
 //
@@ -283,7 +281,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 // check that value against the expected value of the field, advancing the
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
-func Guess(b *elf.Module) error {
+func guess(b *elf.Module) error {
 	currentNetns, err := ownNetNS()
 	if err != nil {
 		return fmt.Errorf("error getting current netns: %v", err)
