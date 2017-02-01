@@ -43,6 +43,9 @@ func NewTracerFromFile(fileName string, tcpEventCbV4 func(TcpV4), tcpEventCbV6 f
 		return nil, fmt.Errorf("failed to init perf map for IPv6 events: %s\n", err)
 	}
 
+	perfMapIPV4.SetTimestampFunc(tcpV4Timestamp)
+	perfMapIPV6.SetTimestampFunc(tcpV6Timestamp)
+
 	go func() {
 		for {
 			data := <-channelV4
