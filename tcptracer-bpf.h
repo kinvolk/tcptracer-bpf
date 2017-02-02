@@ -75,12 +75,12 @@ struct pid_comm_t {
 	char comm[TASK_COMM_LEN];
 };
 
-#define TCPTRACER_STATUS_UNINITIALIZED 0
-#define TCPTRACER_STATUS_CHECKING      1
-#define TCPTRACER_STATUS_CHECKED       2
-#define TCPTRACER_STATUS_READY         3
+#define TCPTRACER_STATE_UNINITIALIZED 0
+#define TCPTRACER_STATE_CHECKING      1
+#define TCPTRACER_STATE_CHECKED       2
+#define TCPTRACER_STATE_READY         3
 struct tcptracer_status_t {
-	__u64 status;
+	__u64 state;
 
 	/* checking */
 	__u64 pid_tgid;

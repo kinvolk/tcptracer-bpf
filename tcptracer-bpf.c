@@ -112,14 +112,14 @@ __attribute__((always_inline))
 static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *skp, u64 pid) {
 	u64 zero = 0;
 
-	switch (status->status) {
-		case TCPTRACER_STATUS_UNINITIALIZED:
+	switch (status->state) {
+		case TCPTRACER_STATE_UNINITIALIZED:
 			return 0;
-		case TCPTRACER_STATUS_CHECKING:
+		case TCPTRACER_STATE_CHECKING:
 			break;
-		case TCPTRACER_STATUS_CHECKED:
+		case TCPTRACER_STATE_CHECKED:
 			return 0;
-		case TCPTRACER_STATUS_READY:
+		case TCPTRACER_STATE_READY:
 			return 1;
 		default:
 			return 0;
@@ -128,29 +128,29 @@ static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *
 	if (status->pid_tgid >> 32 != pid >> 32)
 		return 0;
 
-	struct tcptracer_status_t updated_status = { };
-	updated_status.status = TCPTRACER_STATUS_CHECKED;
-	updated_status.pid_tgid = status->pid_tgid;
-	updated_status.what = status->what;
-	updated_status.offset_saddr = status->offset_saddr;
-	updated_status.offset_daddr = status->offset_daddr;
-	updated_status.offset_sport = status->offset_sport;
-	updated_status.offset_dport = status->offset_dport;
-	updated_status.offset_netns = status->offset_netns;
-	updated_status.offset_ino = status->offset_ino;
-	updated_status.offset_family = status->offset_family;
-	updated_status.offset_daddr_ipv6 = status->offset_daddr_ipv6;
-	updated_status.err = 0;
-	updated_status.saddr = status->saddr;
-	updated_status.daddr = status->daddr;
-	updated_status.sport = status->sport;
-	updated_status.dport = status->dport;
-	updated_status.netns = status->netns;
-	updated_status.family = status->family;
+	struct tcptracer_status_t new_status = { };
+	new_status.state = TCPTRACER_STATE_CHECKED;
+	new_status.pid_tgid = status->pid_tgid;
+	new_status.what = status->what;
+	new_status.offset_saddr = status->offset_saddr;
+	new_status.offset_daddr = status->offset_daddr;
+	new_status.offset_sport = status->offset_sport;
+	new_status.offset_dport = status->offset_dport;
+	new_status.offset_netns = status->offset_netns;
+	new_status.offset_ino = status->offset_ino;
+	new_status.offset_family = status->offset_family;
+	new_status.offset_daddr_ipv6 = status->offset_daddr_ipv6;
+	new_status.err = 0;
+	new_status.saddr = status->saddr;
+	new_status.daddr = status->daddr;
+	new_status.sport = status->sport;
+	new_status.dport = status->dport;
+	new_status.netns = status->netns;
+	new_status.family = status->family;
 
 	int i;
 	for (i = 0; i < 4; i++) {
-		updated_status.daddr_ipv6[i] = status->daddr_ipv6[i];
+		new_status.daddr_ipv6[i] = status->daddr_ipv6[i];
 	}
 
 	u32 possible_saddr;
@@ -166,27 +166,27 @@ static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *
 		case GUESS_SADDR:
 			possible_saddr = 0;
 			bpf_probe_read(&possible_saddr, sizeof(possible_saddr), ((char *)skp) + status->offset_saddr);
-			updated_status.saddr = possible_saddr;
+			new_status.saddr = possible_saddr;
 			break;
 		case GUESS_DADDR:
 			possible_daddr = 0;
 			bpf_probe_read(&possible_daddr, sizeof(possible_daddr), ((char *)skp) + status->offset_daddr);
-			updated_status.daddr = possible_daddr;
+			new_status.daddr = possible_daddr;
 			break;
 		case GUESS_FAMILY:
 			possible_family = 0;
 			bpf_probe_read(&possible_family, sizeof(possible_family), ((char *)skp) + status->offset_family);
-			updated_status.family = possible_family;
+			new_status.family = possible_family;
 			break;
 		case GUESS_SPORT:
 			possible_sport = 0;
 			bpf_probe_read(&possible_sport, sizeof(possible_sport), ((char *)skp) + status->offset_sport);
-			updated_status.sport = possible_sport;
+			new_status.sport = possible_sport;
 			break;
 		case GUESS_DPORT:
 			possible_dport = 0;
 			bpf_probe_read(&possible_dport, sizeof(possible_dport), ((char *)skp) + status->offset_dport);
-			updated_status.dport = possible_dport;
+			new_status.dport = possible_dport;
 			break;
 		case GUESS_NETNS:
 			possible_netns = 0;
@@ -197,17 +197,17 @@ static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *
 			// to the next offset_netns
 			ret = bpf_probe_read(&possible_netns, sizeof(possible_netns), ((char *)possible_skc_net) + status->offset_ino);
 			if (ret == -EFAULT) {
-				updated_status.err = 1;
+				new_status.err = 1;
 				break;
 			}
-			updated_status.netns = possible_netns;
+			new_status.netns = possible_netns;
 			break;
 		default:
 			// not for us
 			return 0;
 	}
 
-	bpf_map_update_elem(&tcptracer_status, &zero, &updated_status, BPF_ANY);
+	bpf_map_update_elem(&tcptracer_status, &zero, &new_status, BPF_ANY);
 
 	return 0;
 }
@@ -216,14 +216,14 @@ __attribute__((always_inline))
 static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *skp, u64 pid) {
 	u64 zero = 0;
 
-	switch (status->status) {
-		case TCPTRACER_STATUS_UNINITIALIZED:
+	switch (status->state) {
+		case TCPTRACER_STATE_UNINITIALIZED:
 			return 0;
-		case TCPTRACER_STATUS_CHECKING:
+		case TCPTRACER_STATE_CHECKING:
 			break;
-		case TCPTRACER_STATUS_CHECKED:
+		case TCPTRACER_STATE_CHECKED:
 			return 0;
-		case TCPTRACER_STATUS_READY:
+		case TCPTRACER_STATE_READY:
 			return 1;
 		default:
 			return 0;
@@ -232,29 +232,29 @@ static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *
 	if (status->pid_tgid >> 32 != pid >> 32)
 		return 0;
 
-	struct tcptracer_status_t updated_status = { };
-	updated_status.status = TCPTRACER_STATUS_CHECKED;
-	updated_status.pid_tgid = status->pid_tgid;
-	updated_status.what = status->what;
-	updated_status.offset_saddr = status->offset_saddr;
-	updated_status.offset_daddr = status->offset_daddr;
-	updated_status.offset_sport = status->offset_sport;
-	updated_status.offset_dport = status->offset_dport;
-	updated_status.offset_netns = status->offset_netns;
-	updated_status.offset_ino = status->offset_ino;
-	updated_status.offset_family = status->offset_family;
-	updated_status.offset_daddr_ipv6 = status->offset_daddr_ipv6;
-	updated_status.err = 0;
-	updated_status.saddr = status->saddr;
-	updated_status.daddr = status->daddr;
-	updated_status.sport = status->sport;
-	updated_status.dport = status->dport;
-	updated_status.netns = status->netns;
-	updated_status.family = status->family;
+	struct tcptracer_status_t new_status = { };
+	new_status.state = TCPTRACER_STATE_CHECKED;
+	new_status.pid_tgid = status->pid_tgid;
+	new_status.what = status->what;
+	new_status.offset_saddr = status->offset_saddr;
+	new_status.offset_daddr = status->offset_daddr;
+	new_status.offset_sport = status->offset_sport;
+	new_status.offset_dport = status->offset_dport;
+	new_status.offset_netns = status->offset_netns;
+	new_status.offset_ino = status->offset_ino;
+	new_status.offset_family = status->offset_family;
+	new_status.offset_daddr_ipv6 = status->offset_daddr_ipv6;
+	new_status.err = 0;
+	new_status.saddr = status->saddr;
+	new_status.daddr = status->daddr;
+	new_status.sport = status->sport;
+	new_status.dport = status->dport;
+	new_status.netns = status->netns;
+	new_status.family = status->family;
 
 	int i;
 	for (i = 0; i < 4; i++) {
-		updated_status.daddr_ipv6[i] = status->daddr_ipv6[i];
+		new_status.daddr_ipv6[i] = status->daddr_ipv6[i];
 	}
 
 	u32 possible_daddr_ipv6[4] = { };
@@ -264,7 +264,7 @@ static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *
 
 			int i;
 			for (i = 0; i < 4; i++) {
-				updated_status.daddr_ipv6[i] = possible_daddr_ipv6[i];
+				new_status.daddr_ipv6[i] = possible_daddr_ipv6[i];
 			}
 			break;
 		default:
@@ -272,7 +272,7 @@ static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *
 			return 0;
 	}
 
-	bpf_map_update_elem(&tcptracer_status, &zero, &updated_status, BPF_ANY);
+	bpf_map_update_elem(&tcptracer_status, &zero, &new_status, BPF_ANY);
 
 	return 0;
 }
@@ -285,7 +285,7 @@ static bool check_family(struct sock *sk, u16 expected_family) {
 	family = 0;
 
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->status != TCPTRACER_STATUS_READY) {
+	if (status == NULL || status->state != TCPTRACER_STATE_READY) {
 		return 1;
 	}
 
@@ -413,7 +413,7 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx)
 	}
 
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->status == TCPTRACER_STATUS_UNINITIALIZED) {
+	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
 		return 0;
 	}
 
@@ -465,7 +465,7 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx)
 	struct sock *skp = *skpp;
 
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->status == TCPTRACER_STATUS_UNINITIALIZED) {
+	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
 		return 0;
 	}
 
@@ -518,7 +518,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx)
 	state = (int) PT_REGS_PARM2(ctx);
 
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->status != TCPTRACER_STATUS_READY) {
+	if (status == NULL || status->state != TCPTRACER_STATE_READY) {
 		return 0;
 	}
 
@@ -610,7 +610,7 @@ int kprobe__tcp_close(struct pt_regs *ctx)
 	sk = (struct sock *) PT_REGS_PARM1(ctx);
 
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->status != TCPTRACER_STATUS_READY) {
+	if (status == NULL || status->state != TCPTRACER_STATE_READY) {
 		return 0;
 	}
 
@@ -719,7 +719,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 		return 0;
 
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->status != TCPTRACER_STATUS_READY) {
+	if (status == NULL || status->state != TCPTRACER_STATE_READY) {
 		return 0;
 	}
 

@@ -187,7 +187,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		return fmt.Errorf("error reading tcptracer_status: %v", err)
 	}
 
-	if status.status != stateChecked {
+	if status.state != stateChecked {
 		return fmt.Errorf("invalid guessing state")
 	}
 
@@ -199,7 +199,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 			status.offset_saddr++
 			status.saddr = C.__u32(expected.saddr)
 		}
-		status.status = stateChecking
+		status.state = stateChecking
 	case guessDaddr:
 		if status.daddr == C.__u32(expected.daddr) {
 			status.what = guessFamily
@@ -207,7 +207,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 			status.offset_daddr++
 			status.daddr = C.__u32(expected.daddr)
 		}
-		status.status = stateChecking
+		status.state = stateChecking
 	case guessFamily:
 		if status.family == C.__u16(expected.family) {
 			status.what = guessSport
@@ -217,21 +217,21 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		} else {
 			status.offset_family++
 		}
-		status.status = stateChecking
+		status.state = stateChecking
 	case guessSport:
 		if status.sport == C.__u16(htons(expected.sport)) {
 			status.what = guessDport
 		} else {
 			status.offset_sport++
 		}
-		status.status = stateChecking
+		status.state = stateChecking
 	case guessDport:
 		if status.dport == C.__u16(htons(expected.dport)) {
 			status.what = guessNetns
 		} else {
 			status.offset_dport++
 		}
-		status.status = stateChecking
+		status.state = stateChecking
 	case guessNetns:
 		if status.netns == C.__u32(expected.netns) {
 			status.what = guessDaddrIPv6
@@ -243,15 +243,15 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 				status.offset_netns++
 			}
 		}
-		status.status = stateChecking
+		status.state = stateChecking
 	case guessDaddrIPv6:
 		if compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
 			// at this point, we've guessed all the offsets we need,
 			// set the status to "stateReady"
-			status.status = stateReady
+			status.state = stateReady
 		} else {
 			status.offset_daddr_ipv6++
-			status.status = stateChecking
+			status.state = stateChecking
 		}
 	default:
 		return fmt.Errorf("unexpected field to guess")
@@ -290,13 +290,13 @@ func guess(b *elf.Module) error {
 	pidTgid := uint64(os.Getpid()<<32 | syscall.Gettid())
 
 	status := &tcpTracerStatus{
-		status:   stateChecking,
+		state:    stateChecking,
 		pid_tgid: C.__u64(pidTgid),
 	}
 
 	// if we already have the offsets, just return
 	err = b.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status))
-	if err == nil && status.status == stateReady {
+	if err == nil && status.state == stateReady {
 		return nil
 	}
 
@@ -331,7 +331,7 @@ func guess(b *elf.Module) error {
 		family: syscall.AF_INET,
 	}
 
-	for status.status != stateReady {
+	for status.state != stateReady {
 		if err := tryCurrentOffset(b, mp, status, expected); err != nil {
 			return err
 		}
