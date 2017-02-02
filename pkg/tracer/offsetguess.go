@@ -24,7 +24,11 @@ import "C"
 type tcpTracerStatus C.struct_tcptracer_status_t
 
 const (
-	threshold         = 200
+	// When reading kernel structs at different offsets, don't go over that
+	// limit. This is an arbitrary choice to avoid infinite loops.
+	threshold = 200
+
+	// The source port is much further away in the inet sock.
 	thresholdInetSock = 2000
 )
 
@@ -342,7 +346,9 @@ func guess(b *elf.Module) error {
 			return err
 		}
 
-		// stop at a reasonable offset so we don't run forever
+		// Stop at a reasonable offset so we don't run forever.
+		// Reading too far away in kernel memory is not a big deal:
+		// probe_kernel_read() handles faults gracefully.
 		if status.offset_saddr >= threshold || status.offset_daddr >= threshold ||
 			status.offset_sport >= thresholdInetSock || status.offset_dport >= threshold ||
 			status.offset_netns >= threshold || status.offset_family >= threshold ||
