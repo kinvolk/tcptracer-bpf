@@ -27,28 +27,30 @@ func (e EventType) String() string {
 	}
 }
 
+// TcpV4 represents a TCP event (connect, accept or close) on IPv4
 type TcpV4 struct {
-	Timestamp uint64
-	CPU       uint64
-	Type      EventType
-	Pid       uint32
-	Comm      string
-	SAddr     net.IP
-	DAddr     net.IP
-	SPort     uint16
-	DPort     uint16
-	NetNS     uint32
+	Timestamp uint64    // Monotonic timestamp
+	CPU       uint64    // CPU index
+	Type      EventType // connect, accept or close
+	Pid       uint32    // Process ID, who triggered the event
+	Comm      string    // The process command (as in /proc/$pid/comm)
+	SAddr     net.IP    // Local IP address
+	DAddr     net.IP    // Remote IP address
+	SPort     uint16    // Local TCP port
+	DPort     uint16    // Remote TCP port
+	NetNS     uint32    // Network namespace ID (as in /proc/$pid/ns/net)
 }
 
+// TcpV6 represents a TCP event (connect, accept or close) on IPv6
 type TcpV6 struct {
-	Timestamp uint64
-	CPU       uint64
-	Type      EventType
-	Pid       uint32
-	Comm      string
-	SAddr     net.IP
-	DAddr     net.IP
-	SPort     uint16
-	DPort     uint16
-	NetNS     uint32
+	Timestamp uint64    // Monotonic timestamp
+	CPU       uint64    // CPU index
+	Type      EventType // connect, accept or close
+	Pid       uint32    // Process ID, who triggered the event
+	Comm      string    // The process command (as in /proc/$pid/comm)
+	SAddr     net.IP    // Local IP address
+	DAddr     net.IP    // Remote IP address
+	SPort     uint16    // Local TCP port
+	DPort     uint16    // Remote TCP port
+	NetNS     uint32    // Network namespace ID (as in /proc/$pid/ns/net)
 }
