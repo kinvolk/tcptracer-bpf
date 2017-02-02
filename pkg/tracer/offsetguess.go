@@ -195,52 +195,46 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 	case guessSaddr:
 		if status.saddr == C.__u32(expected.saddr) {
 			status.what = guessDaddr
-			status.status = stateChecking
 		} else {
 			status.offset_saddr++
-			status.status = stateChecking
 			status.saddr = C.__u32(expected.saddr)
 		}
+		status.status = stateChecking
 	case guessDaddr:
 		if status.daddr == C.__u32(expected.daddr) {
 			status.what = guessFamily
-			status.status = stateChecking
 		} else {
 			status.offset_daddr++
-			status.status = stateChecking
 			status.daddr = C.__u32(expected.daddr)
 		}
+		status.status = stateChecking
 	case guessFamily:
 		if status.family == C.__u16(expected.family) {
 			status.what = guessSport
-			status.status = stateChecking
 			// we know the sport ((struct inet_sock)->inet_sport) is
 			// after the family field, so we start from there
 			status.offset_sport = status.offset_family
 		} else {
 			status.offset_family++
-			status.status = stateChecking
 		}
+		status.status = stateChecking
 	case guessSport:
 		if status.sport == C.__u16(htons(expected.sport)) {
 			status.what = guessDport
-			status.status = stateChecking
 		} else {
 			status.offset_sport++
-			status.status = stateChecking
 		}
+		status.status = stateChecking
 	case guessDport:
 		if status.dport == C.__u16(htons(expected.dport)) {
 			status.what = guessNetns
-			status.status = stateChecking
 		} else {
 			status.offset_dport++
-			status.status = stateChecking
 		}
+		status.status = stateChecking
 	case guessNetns:
 		if status.netns == C.__u32(expected.netns) {
 			status.what = guessDaddrIPv6
-			status.status = stateChecking
 		} else {
 			status.offset_ino++
 			// go to the next offset_netns if we get an error
@@ -248,8 +242,8 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 				status.offset_ino = 0
 				status.offset_netns++
 			}
-			status.status = stateChecking
 		}
+		status.status = stateChecking
 	case guessDaddrIPv6:
 		if compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
 			// at this point, we've guessed all the offsets we need,
