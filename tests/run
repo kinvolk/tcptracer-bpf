@@ -40,6 +40,9 @@ sleep 1 # wait for tracer to load
 # stop and fail here when tracer encountered an error and didn't start
 ps -p "$tracer_pid" >/dev/null
 
+nsenter --net="${netns}" ./multiple_connections_refused.sh "1200" &
+sleep 3
+
 nsenter --net="${netns}" nc -l "${port}" &
 server_pid=$!
 nsenter --net="${netns}" nc 127.0.0.1 "${port}" &
