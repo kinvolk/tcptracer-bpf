@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
+	// "os/signal"
 
 	"github.com/weaveworks/tcptracer-bpf/pkg/tracer"
 )
@@ -12,8 +12,8 @@ var lastTimestampV4 uint64
 var lastTimestampV6 uint64
 
 func tcpEventCbV4(e tracer.TcpV4) {
-	fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n",
-		e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS)
+	// fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n",
+	// 	e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS)
 
 	if lastTimestampV4 > e.Timestamp {
 		fmt.Printf("ERROR: late event!\n")
@@ -24,8 +24,8 @@ func tcpEventCbV4(e tracer.TcpV4) {
 }
 
 func tcpEventCbV6(e tracer.TcpV6) {
-	fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n",
-		e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS)
+	// fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n",
+	// 	e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS)
 
 	if lastTimestampV6 > e.Timestamp {
 		fmt.Printf("ERROR: late event!\n")
@@ -47,9 +47,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, os.Kill)
+	// sig := make(chan os.Signal, 1)
+	// signal.Notify(sig, os.Interrupt, os.Kill)
 
-	<-sig
+	// <-sig
 	t.Stop()
 }

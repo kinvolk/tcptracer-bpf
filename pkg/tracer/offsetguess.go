@@ -347,6 +347,13 @@ func guess(b *elf.Module) error {
 		return nil
 	}
 
+	var pid uint32
+	var tid uint32
+	pid = uint32(os.Getpid())
+	tid = uint32(syscall.Gettid())
+
+	fmt.Printf("user   - pid: %d tid: %d\n", pid, tid)
+
 	stop, listenPort, err := startServer()
 	if err != nil {
 		return err
@@ -379,6 +386,15 @@ func guess(b *elf.Module) error {
 			return err
 		}
 
+		pid = uint32(status.pid_tgid >> 32)
+		tid = uint32(status.pid_tgid)
+
+		// fmt.Printf("system - pid: %d tid: %d\n", pid, tid)
+
+		if pid != tid {
+			return fmt.Errorf("pid %d != tid %d\n", pid, tid)
+		}
+
 		// Stop at a reasonable offset so we don't run forever.
 		// Reading too far away in kernel memory is not a big deal:
 		// probe_kernel_read() handles faults gracefully.
@@ -389,6 +405,11 @@ func guess(b *elf.Module) error {
 			return fmt.Errorf("overflow while guessing %v, bailing out", whatString[status.what])
 		}
 	}
+
+	pid = uint32(status.pid_tgid >> 32)
+	tid = uint32(status.pid_tgid)
+
+	fmt.Printf("system - pid: %d tid: %d\n", pid, tid)
 
 	return nil
 }
