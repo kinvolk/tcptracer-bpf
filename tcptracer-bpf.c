@@ -392,6 +392,9 @@ int kprobe__tcp_v4_connect(struct pt_regs *ctx)
 {
 	struct sock *sk;
 	u64 pid = bpf_get_current_pid_tgid();
+	char fstr[] = "kprobe__tcp_v4_connect - pid_tgid %llu\n";
+
+	bpf_trace_printk(fstr, sizeof(fstr), pid);
 
 	sk = (struct sock *) PT_REGS_PARM1(ctx);
 
@@ -408,6 +411,9 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx)
 	struct sock **skpp;
 	u64 zero = 0;
 	struct tcptracer_status_t *status;
+	char fstr[] = "kretprobe__tcp_v4_connect - pid_tgid %llu\n";
+
+	bpf_trace_printk(fstr, sizeof(fstr), pid);
 
 	skpp = bpf_map_lookup_elem(&connectsock_ipv4, &pid);
 	if (skpp == 0) {

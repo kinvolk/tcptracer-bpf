@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
+	// "os/signal"
 
 	"github.com/weaveworks/tcptracer-bpf/pkg/tracer"
 )
@@ -47,9 +47,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, os.Kill)
+	// sig := make(chan os.Signal, 1)
+	// signal.Notify(sig, os.Interrupt, os.Kill)
 
-	<-sig
+	// <-sig
 	t.Stop()
 }

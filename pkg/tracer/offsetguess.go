@@ -3,8 +3,11 @@
 package tracer
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	"os"
@@ -376,7 +379,21 @@ func guess(b *elf.Module) error {
 		family: syscall.AF_INET,
 	}
 
+	const kprobeProfile = "/sys/kernel/debug/tracing/kprobe_profile"
 	for status.state != stateReady {
+		fmt.Printf("%v\n", whatString[status.what])
+		buf, err := ioutil.ReadFile(kprobeProfile)
+		if err != nil {
+			return err
+		}
+		scanner := bufio.NewScanner(bytes.NewReader(buf))
+		for scanner.Scan() {
+			text := scanner.Text()
+			text = strings.Trim(text, " ")
+			if strings.HasPrefix(text, "rtcp_v4_connect") {
+				fmt.Printf("%s\n", text)
+			}
+		}
 		if err := tryCurrentOffset(b, mp, status, expected, stop); err != nil {
 			return err
 		}
@@ -395,6 +412,7 @@ func guess(b *elf.Module) error {
 			return fmt.Errorf("overflow while guessing %v, bailing out", whatString[status.what])
 		}
 	}
+	fmt.Printf("%v\n", stateString[status.state])
 
 	return nil
 }
