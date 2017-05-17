@@ -115,6 +115,8 @@ func (t *Tracer) Stop() {
 	close(t.stopChan)
 	t.perfMapIPV4.PollStop()
 	t.perfMapIPV6.PollStop()
+
+	t.m.Close()
 }
 
 func initialize(module *bpflib.Module, eventMapName string, eventChan chan []byte, lostChan chan uint64) (*bpflib.PerfMap, error) {

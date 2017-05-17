@@ -25,14 +25,17 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"unsafe"
 )
 
 /*
 #include <unistd.h>
 #include <strings.h>
+#include <stdlib.h>
 #include "include/bpf.h"
 #include <linux/perf_event.h>
 #include <linux/unistd.h>
@@ -260,5 +263,103 @@ func (b *Module) AttachCgroupProgram(cgroupProg *CgroupProgram, cgroupPath strin
 		return fmt.Errorf("failed to attach prog to cgroup %q: %v\n", cgroupPath, err)
 	}
 
+	return nil
+}
+
+func (kp *Kprobe) Fd() int {
+	return kp.fd
+}
+
+func disableKprobe(eventName string) error {
+	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
+	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("cannot open kprobe_events: %v\n", err)
+	}
+	defer f.Close()
+	cmd := fmt.Sprintf("-:%s\n", eventName)
+	_, err = f.WriteString(cmd)
+	if err != nil {
+		pathErr, ok := err.(*os.PathError)
+		if ok && pathErr.Err == syscall.ENOENT {
+			// This can happen when for example two modules
+			// use the same elf object and both call `Close()`.
+			// The second will encounter the error as the
+			// probe already has been cleared by the first.
+			return nil
+		} else {
+			return fmt.Errorf("cannot write %q to kprobe_events: %v\n", cmd, err)
+		}
+	}
+	return nil
+}
+
+func (b *Module) closeProbes() error {
+	var funcName string
+	for _, probe := range b.probes {
+		err := syscall.Close(probe.efd)
+		if err != nil {
+			return fmt.Errorf("error closing perf event fd: %v", err)
+		}
+		err = syscall.Close(probe.fd)
+		if err != nil {
+			return fmt.Errorf("error closing probe fd: %v", err)
+		}
+		name := probe.Name
+		isKretprobe := strings.HasPrefix(name, "kretprobe/")
+		if isKretprobe {
+			funcName = strings.TrimPrefix(name, "kretprobe/")
+			err = disableKprobe("r" + funcName)
+		} else {
+			funcName = strings.TrimPrefix(name, "kprobe/")
+			err = disableKprobe("p" + funcName)
+		}
+		if err != nil {
+			return fmt.Errorf("error clearing probe: %v", err)
+		}
+	}
+	return nil
+}
+
+func (b *Module) closeCgroupPrograms() error {
+	for _, program := range b.cgroupPrograms {
+		err := syscall.Close(program.fd)
+		if err != nil {
+			return fmt.Errorf("error closing cgroup program fd: %v", err)
+		}
+	}
+	return nil
+}
+
+func unpinMap(m *Map) error {
+	if m.m.def.pinning == 0 {
+		return nil
+	}
+	namespace := C.GoString(&m.m.def.namespace[0])
+	mapPath := filepath.Join(BPFFSPath, namespace, BPFDirGlobals, m.Name)
+	return syscall.Unlink(mapPath)
+}
+
+func (b *Module) closeMaps() error {
+	for _, m := range b.maps {
+		if m.m.def.pinning > 0 {
+			unpinMap(m)
+		}
+		C.free(unsafe.Pointer(m.m))
+	}
+	return nil
+}
+
+// Close takes care of terminating all underlying BPF programs and structures
+func (b *Module) Close() error {
+	if err := b.closeMaps(); err != nil {
+		return err
+	}
+	if err := b.closeProbes(); err != nil {
+		return err
+	}
+	if err := b.closeCgroupPrograms(); err != nil {
+		return err
+	}
 	return nil
 }

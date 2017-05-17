@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
+	"time"
 
 	"github.com/weaveworks/tcptracer-bpf/pkg/tracer"
 )
@@ -46,6 +46,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	time.Sleep(10 * time.Second)
+
+	fmt.Println("Starting tracer")
 	t, err := tracer.NewTracer(tcpEventCbV4, tcpEventCbV6, lostCb)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -54,9 +57,14 @@ func main() {
 
 	fmt.Printf("Ready\n")
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, os.Kill)
+	/*
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, os.Interrupt, os.Kill)
 
-	<-sig
+		<-sig
+	*/
+	time.Sleep(20 * time.Second)
 	t.Stop()
+	fmt.Println("stopped!")
+	time.Sleep(20000 * time.Second)
 }
