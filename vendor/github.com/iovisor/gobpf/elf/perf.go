@@ -106,7 +106,8 @@ import "C"
 // DataChan is ...
 type DataChan struct {
 	Data []byte
-	BeforeHarvest uint64
+	BeforeHarvestPacket uint64
+	BeforeHarvestCurrent uint64
 	Counter int
 }
 
@@ -207,7 +208,7 @@ func (pm *PerfMap) PollStart() {
 						case C.PERF_RECORD_SAMPLE:
 							size := sample.Size - 4
 							b := C.GoBytes(unsafe.Pointer(&sample.data), C.int(size))
-							incoming.bytesArray = append(incoming.bytesArray, b)
+							incoming.bytesArray = append(incoming.bytesArray, PerfMessage{b, BeforeHarvest, int(harvestCount)})
 							harvestCount++
 							if pm.timestamp == nil {
 								continue ringBufferLoop
@@ -230,13 +231,17 @@ func (pm *PerfMap) PollStart() {
 					sort.Sort(incoming)
 				}
 				for incoming.Len() > 0 {
-					if incoming.timestamp != nil && incoming.timestamp(&incoming.bytesArray[0]) > BeforeHarvest {
+					if incoming.timestamp == nil {
+						panic("no timestamp function")
+					}
+					if incoming.timestamp != nil && incoming.timestamp(&incoming.bytesArray[0].B) > BeforeHarvest {
 						// This record has been sent after the beginning of the harvest. Stop
 						// processing here to keep the order. "incoming" is sorted, so the next
 						// elements also must not be processed now.
 						break harvestLoop
 					}
-					pm.receiverChan <- DataChan{incoming.bytesArray[0], BeforeHarvest, incoming.Len()}
+					//pm.receiverChan <- DataChan{incoming.bytesArray[0].B, BeforeHarvest, incoming.Len()}
+					pm.receiverChan <- DataChan{incoming.bytesArray[0].B, incoming.bytesArray[0].Timestamp, BeforeHarvest, incoming.Len()}
 					// remove first element
 					incoming.bytesArray = incoming.bytesArray[1:]
 				}
@@ -273,9 +278,16 @@ func perfEventPoll(fds []C.int) error {
 	return nil
 }
 
+// PerfMessage is one record
+type PerfMessage struct {
+	B		[]byte
+	Timestamp	uint64
+	Count		int
+}
+
 // Assume the timestamp is at the beginning of the user struct
 type OrderedBytesArray struct {
-	bytesArray [][]byte
+	bytesArray []PerfMessage
 	timestamp  func(*[]byte) uint64
 }
 
@@ -288,7 +300,7 @@ func (a OrderedBytesArray) Swap(i, j int) {
 }
 
 func (a OrderedBytesArray) Less(i, j int) bool {
-	return a.timestamp(&a.bytesArray[i]) < a.timestamp(&a.bytesArray[j])
+	return a.timestamp(&a.bytesArray[i].B) < a.timestamp(&a.bytesArray[j].B)
 }
 
 // Matching 'struct perf_event_header in <linux/perf_event.h>

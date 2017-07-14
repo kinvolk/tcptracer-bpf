@@ -19,14 +19,14 @@ type tcpEventTracer struct {
 	lastTimestampV6 uint64
 }
 
-func (t *tcpEventTracer) TCPEventV4(e tracer.TcpV4, beforeHarvest uint64, counter int) {
+func (t *tcpEventTracer) TCPEventV4(e tracer.TcpV4, beforeHarvestPacket, beforeHarvestCurrent uint64, counter int) {
 	if e.Type == tracer.EventFdInstall {
 		fmt.Printf("%v cpu#%d %s %v %s %v\n",
 			e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.Fd)
 	} else {
-		fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v (beforeHarvest %v counter %v)\n",
+		fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v (beforeHarvest %v %v counter %v)\n",
 			e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS,
-			beforeHarvest, counter)
+			beforeHarvestPacket, beforeHarvestCurrent, counter)
 	}
 
 	if t.lastTimestampV4 > e.Timestamp {

@@ -81,7 +81,7 @@ func NewTracer(cb Callback) (*Tracer, error) {
 			case <-stopChan:
 				return
 			case data := <-channelV4:
-				cb.TCPEventV4(tcpV4ToGo(&data.Data), data.BeforeHarvest, data.Counter)
+				cb.TCPEventV4(tcpV4ToGo(&data.Data), data.BeforeHarvestPacket, data.BeforeHarvestCurrent, data.Counter)
 			case lost := <-lostChanV4:
 				cb.LostV4(lost)
 			}
