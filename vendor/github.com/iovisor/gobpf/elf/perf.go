@@ -103,11 +103,18 @@ static int perf_event_read(int page_count, int page_size, void *_state,
 */
 import "C"
 
+// DataChan is ...
+type DataChan struct {
+	Data []byte
+	BeforeHarvest uint64
+	Counter int
+}
+
 type PerfMap struct {
 	name         string
 	program      *Module
 	pageCount    int
-	receiverChan chan []byte
+	receiverChan chan DataChan
 	lostChan     chan uint64
 	pollStop     chan bool
 	timestamp    func(*[]byte) uint64
@@ -120,7 +127,7 @@ type PerfEventSample struct {
 	data byte // Size bytes of data
 }
 
-func InitPerfMap(b *Module, mapName string, receiverChan chan []byte, lostChan chan uint64) (*PerfMap, error) {
+func InitPerfMap(b *Module, mapName string, receiverChan chan DataChan, lostChan chan uint64) (*PerfMap, error) {
 	m, ok := b.maps[mapName]
 	if !ok {
 		return nil, fmt.Errorf("no map with name %s", mapName)
@@ -147,6 +154,8 @@ func InitPerfMap(b *Module, mapName string, receiverChan chan []byte, lostChan c
 func (pm *PerfMap) SetTimestampFunc(timestamp func(*[]byte) uint64) {
 	pm.timestamp = timestamp
 }
+
+var BeforeHarvest uint64
 
 func (pm *PerfMap) PollStart() {
 	incoming := OrderedBytesArray{timestamp: pm.timestamp}
@@ -180,7 +189,8 @@ func (pm *PerfMap) PollStart() {
 				}
 
 				var harvestCount C.int
-				beforeHarvest := nowNanoseconds()
+				BeforeHarvest = nowNanoseconds()
+				//fmt.Printf("%v BeforeHarvest\n", BeforeHarvest)
 				for cpu := 0; cpu < cpuCount; cpu++ {
 				ringBufferLoop:
 					for {
@@ -202,7 +212,7 @@ func (pm *PerfMap) PollStart() {
 							if pm.timestamp == nil {
 								continue ringBufferLoop
 							}
-							if incoming.timestamp(&b) > beforeHarvest {
+							if incoming.timestamp(&b) > BeforeHarvest {
 								// see comment below
 								break ringBufferLoop
 							}
@@ -220,13 +230,13 @@ func (pm *PerfMap) PollStart() {
 					sort.Sort(incoming)
 				}
 				for incoming.Len() > 0 {
-					if incoming.timestamp != nil && incoming.timestamp(&incoming.bytesArray[0]) > beforeHarvest {
+					if incoming.timestamp != nil && incoming.timestamp(&incoming.bytesArray[0]) > BeforeHarvest {
 						// This record has been sent after the beginning of the harvest. Stop
 						// processing here to keep the order. "incoming" is sorted, so the next
 						// elements also must not be processed now.
 						break harvestLoop
 					}
-					pm.receiverChan <- incoming.bytesArray[0]
+					pm.receiverChan <- DataChan{incoming.bytesArray[0], BeforeHarvest, incoming.Len()}
 					// remove first element
 					incoming.bytesArray = incoming.bytesArray[1:]
 				}
@@ -298,6 +308,9 @@ type PerfEventLost struct {
 // nowNanoseconds returns a time that can be compared to bpf_ktime_get_ns()
 func nowNanoseconds() uint64 {
 	var ts syscall.Timespec
+	//#define CLOCK_MONOTONIC			1
+	//#define CLOCK_MONOTONIC_RAW		4
+
 	syscall.Syscall(syscall.SYS_CLOCK_GETTIME, 1 /* CLOCK_MONOTONIC */, uintptr(unsafe.Pointer(&ts)), 0)
 	sec, nsec := ts.Unix()
 	return 1000*1000*1000*uint64(sec) + uint64(nsec)

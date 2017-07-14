@@ -55,8 +55,8 @@ func NewTracer(cb Callback) (*Tracer, error) {
 		return nil, err
 	}
 
-	channelV4 := make(chan []byte)
-	channelV6 := make(chan []byte)
+	channelV4 := make(chan bpflib.DataChan)
+	channelV6 := make(chan bpflib.DataChan)
 	lostChanV4 := make(chan uint64)
 	lostChanV6 := make(chan uint64)
 
@@ -81,7 +81,7 @@ func NewTracer(cb Callback) (*Tracer, error) {
 			case <-stopChan:
 				return
 			case data := <-channelV4:
-				cb.TCPEventV4(tcpV4ToGo(&data))
+				cb.TCPEventV4(tcpV4ToGo(&data.Data), data.BeforeHarvest, data.Counter)
 			case lost := <-lostChanV4:
 				cb.LostV4(lost)
 			}
@@ -94,7 +94,7 @@ func NewTracer(cb Callback) (*Tracer, error) {
 			case <-stopChan:
 				return
 			case data := <-channelV6:
-				cb.TCPEventV6(tcpV6ToGo(&data))
+				cb.TCPEventV6(tcpV6ToGo(&data.Data))
 			case lost := <-lostChanV6:
 				cb.LostV6(lost)
 			}
@@ -134,7 +134,7 @@ func (t *Tracer) Stop() {
 	t.m.Close()
 }
 
-func initialize(module *bpflib.Module, eventMapName string, eventChan chan []byte, lostChan chan uint64) (*bpflib.PerfMap, error) {
+func initialize(module *bpflib.Module, eventMapName string, eventChan chan bpflib.DataChan, lostChan chan uint64) (*bpflib.PerfMap, error) {
 	if err := guess(module); err != nil {
 		return nil, fmt.Errorf("error guessing offsets: %v", err)
 	}
@@ -148,10 +148,10 @@ func initialize(module *bpflib.Module, eventMapName string, eventChan chan []byt
 
 }
 
-func initializeIPv4(module *bpflib.Module, eventChan chan []byte, lostChan chan uint64) (*bpflib.PerfMap, error) {
+func initializeIPv4(module *bpflib.Module, eventChan chan bpflib.DataChan, lostChan chan uint64) (*bpflib.PerfMap, error) {
 	return initialize(module, "tcp_event_ipv4", eventChan, lostChan)
 }
 
-func initializeIPv6(module *bpflib.Module, eventChan chan []byte, lostChan chan uint64) (*bpflib.PerfMap, error) {
+func initializeIPv6(module *bpflib.Module, eventChan chan bpflib.DataChan, lostChan chan uint64) (*bpflib.PerfMap, error) {
 	return initialize(module, "tcp_event_ipv6", eventChan, lostChan)
 }
