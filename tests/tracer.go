@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/weaveworks/tcptracer-bpf/pkg/tracer"
 	"github.com/iovisor/gobpf/elf"
+	"github.com/weaveworks/tcptracer-bpf/pkg/tracer"
 )
 
 var watchFdInstallPids string
@@ -28,18 +28,18 @@ func (t *tcpEventTracer) TCPEventV4(e tracer.TcpV4, beforeHarvestPacket, beforeH
 	} else {
 		fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v (beforeHarvest %v %v counter %v) mycpu=%v UniqueID=%v diff=%v\n",
 			e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS,
-			beforeHarvestPacket, beforeHarvestCurrent, counter, myCPU, uniqueID, e.Timestamp - t.lastTimestampV4)
+			beforeHarvestPacket, beforeHarvestCurrent, counter, myCPU, uniqueID, e.Timestamp-t.lastTimestampV4)
 	}
 
 	if lateEvent > 0 {
 		lateEvent++
-		if lateEvent > 5 {
+		if lateEvent > 15 {
 			os.Exit(1)
 		}
 	}
 
 	if e.Timestamp != 0 && t.lastTimestampV4 > e.Timestamp {
-		fmt.Printf("ERROR: late event! %v > %v (%v) BeforeHarvest=%v\n", t.lastTimestampV4, e.Timestamp, t.lastTimestampV4 - e.Timestamp, elf.BeforeHarvest)
+		fmt.Printf("ERROR: late event! %v > %v (%v) BeforeHarvest=%v\n", t.lastTimestampV4, e.Timestamp, t.lastTimestampV4-e.Timestamp, elf.BeforeHarvest)
 		lateEvent++
 	}
 

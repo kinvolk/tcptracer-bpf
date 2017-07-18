@@ -21,6 +21,7 @@ package elf
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"sort"
 	"syscall"
 	"unsafe"
@@ -105,12 +106,12 @@ import "C"
 
 // DataChan is ...
 type DataChan struct {
-	Data []byte
-	BeforeHarvestPacket uint64
+	Data                 []byte
+	BeforeHarvestPacket  uint64
 	BeforeHarvestCurrent uint64
-	Counter int
-	MyCPU int
-	UniqueID uint64
+	Counter              int
+	MyCPU                int
+	UniqueID             uint64
 }
 
 type PerfMap struct {
@@ -171,6 +172,8 @@ func (pm *PerfMap) PollStart() {
 	}
 
 	go func() {
+		runtime.LockOSThread()
+
 		cpuCount := len(m.pmuFDs)
 		pageSize := os.Getpagesize()
 		state := C.struct_read_state{}
@@ -196,7 +199,9 @@ func (pm *PerfMap) PollStart() {
 				var harvestCount C.int
 				BeforeHarvest = nowNanoseconds()
 				//fmt.Printf("%v BeforeHarvest\n", BeforeHarvest)
+				lastCPU := 0
 				for cpu := 0; cpu < cpuCount; cpu++ {
+					lastCPU = cpu
 				ringBufferLoop:
 					for {
 						var sample *PerfEventSample
@@ -252,7 +257,7 @@ func (pm *PerfMap) PollStart() {
 					}
 					//pm.receiverChan <- DataChan{incoming.bytesArray[0].B, BeforeHarvest, incoming.Len()}
 					pm.receiverChan <- DataChan{incoming.bytesArray[0].B, incoming.bytesArray[0].Timestamp, BeforeHarvest, incoming.Len(),
-									incoming.bytesArray[0].MyCPU, incoming.bytesArray[0].UniqueID}
+						incoming.bytesArray[0].MyCPU + lastCPU*10000, incoming.bytesArray[0].UniqueID}
 					// remove first element
 					incoming.bytesArray = incoming.bytesArray[1:]
 				}
@@ -291,11 +296,11 @@ func perfEventPoll(fds []C.int) error {
 
 // PerfMessage is one record
 type PerfMessage struct {
-	B		[]byte
-	Timestamp	uint64
-	Count		int
-	MyCPU		int
-	UniqueID	uint64
+	B         []byte
+	Timestamp uint64
+	Count     int
+	MyCPU     int
+	UniqueID  uint64
 }
 
 // Assume the timestamp is at the beginning of the user struct
