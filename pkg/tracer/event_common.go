@@ -8,7 +8,8 @@ type EventType uint32
 
 // These constants should be in sync with the equivalent definitions in the ebpf program.
 const (
-	EventConnect   EventType = 1
+	EventClock     EventType = 0
+	EventConnect             = 1
 	EventAccept              = 2
 	EventClose               = 3
 	EventFdInstall           = 4
@@ -16,6 +17,8 @@ const (
 
 func (e EventType) String() string {
 	switch e {
+	case EventClock:
+		return "clock"
 	case EventConnect:
 		return "connect"
 	case EventAccept:

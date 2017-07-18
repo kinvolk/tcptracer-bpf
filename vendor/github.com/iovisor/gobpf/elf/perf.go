@@ -219,7 +219,7 @@ func (pm *PerfMap) PollStart() {
 							}
 							incoming.bytesArray = append(incoming.bytesArray, PerfMessage{b, BeforeHarvest, int(harvestCount), mycpu, UniqueID})
 							harvestCount++
-							if pm.timestamp == nil {
+							if pm.timestamp == nil || incoming.timestamp(&b) == 0 {
 								continue ringBufferLoop
 							}
 							if incoming.timestamp(&b) > BeforeHarvest {

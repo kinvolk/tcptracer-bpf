@@ -3,6 +3,7 @@
 
 #include <linux/types.h>
 
+#define TCP_EVENT_TYPE_CLOCK            0
 #define TCP_EVENT_TYPE_CONNECT          1
 #define TCP_EVENT_TYPE_ACCEPT           2
 #define TCP_EVENT_TYPE_CLOSE            3
