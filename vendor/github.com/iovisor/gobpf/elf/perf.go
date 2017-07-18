@@ -109,6 +109,8 @@ type DataChan struct {
 	BeforeHarvestPacket uint64
 	BeforeHarvestCurrent uint64
 	Counter int
+	MyCPU int
+	UniqueID uint64
 }
 
 type PerfMap struct {
@@ -173,6 +175,8 @@ func (pm *PerfMap) PollStart() {
 		pageSize := os.Getpagesize()
 		state := C.struct_read_state{}
 
+		var UniqueID uint64
+
 		for {
 			select {
 			case <-pm.pollStop:
@@ -207,8 +211,13 @@ func (pm *PerfMap) PollStart() {
 							break ringBufferLoop // nothing to read
 						case C.PERF_RECORD_SAMPLE:
 							size := sample.Size - 4
+							UniqueID++
 							b := C.GoBytes(unsafe.Pointer(&sample.data), C.int(size))
-							incoming.bytesArray = append(incoming.bytesArray, PerfMessage{b, BeforeHarvest, int(harvestCount)})
+							mycpu := cpu
+							if incoming.timestamp(&b) > BeforeHarvest {
+								mycpu += 100
+							}
+							incoming.bytesArray = append(incoming.bytesArray, PerfMessage{b, BeforeHarvest, int(harvestCount), mycpu, UniqueID})
 							harvestCount++
 							if pm.timestamp == nil {
 								continue ringBufferLoop
@@ -238,10 +247,12 @@ func (pm *PerfMap) PollStart() {
 						// This record has been sent after the beginning of the harvest. Stop
 						// processing here to keep the order. "incoming" is sorted, so the next
 						// elements also must not be processed now.
+						incoming.bytesArray[0].MyCPU += 1000
 						break harvestLoop
 					}
 					//pm.receiverChan <- DataChan{incoming.bytesArray[0].B, BeforeHarvest, incoming.Len()}
-					pm.receiverChan <- DataChan{incoming.bytesArray[0].B, incoming.bytesArray[0].Timestamp, BeforeHarvest, incoming.Len()}
+					pm.receiverChan <- DataChan{incoming.bytesArray[0].B, incoming.bytesArray[0].Timestamp, BeforeHarvest, incoming.Len(),
+									incoming.bytesArray[0].MyCPU, incoming.bytesArray[0].UniqueID}
 					// remove first element
 					incoming.bytesArray = incoming.bytesArray[1:]
 				}
@@ -283,6 +294,8 @@ type PerfMessage struct {
 	B		[]byte
 	Timestamp	uint64
 	Count		int
+	MyCPU		int
+	UniqueID	uint64
 }
 
 // Assume the timestamp is at the beginning of the user struct

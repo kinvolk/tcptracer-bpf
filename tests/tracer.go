@@ -19,19 +19,28 @@ type tcpEventTracer struct {
 	lastTimestampV6 uint64
 }
 
-func (t *tcpEventTracer) TCPEventV4(e tracer.TcpV4, beforeHarvestPacket, beforeHarvestCurrent uint64, counter int) {
+var lateEvent int
+
+func (t *tcpEventTracer) TCPEventV4(e tracer.TcpV4, beforeHarvestPacket, beforeHarvestCurrent uint64, counter int, myCPU int, uniqueID uint64) {
 	if e.Type == tracer.EventFdInstall {
 		fmt.Printf("%v cpu#%d %s %v %s %v\n",
 			e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.Fd)
 	} else {
-		fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v (beforeHarvest %v %v counter %v)\n",
+		fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v (beforeHarvest %v %v counter %v) mycpu=%v UniqueID=%v\n",
 			e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS,
-			beforeHarvestPacket, beforeHarvestCurrent, counter)
+			beforeHarvestPacket, beforeHarvestCurrent, counter, myCPU, uniqueID)
+	}
+
+	if lateEvent > 0 {
+		lateEvent++
+		if lateEvent > 5 {
+			os.Exit(1)
+		}
 	}
 
 	if t.lastTimestampV4 > e.Timestamp {
 		fmt.Printf("ERROR: late event! %v > %v (%v) BeforeHarvest=%v\n", t.lastTimestampV4, e.Timestamp, t.lastTimestampV4 - e.Timestamp, elf.BeforeHarvest)
-		os.Exit(1)
+		lateEvent++
 	}
 
 	t.lastTimestampV4 = e.Timestamp
