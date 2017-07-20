@@ -51,6 +51,8 @@ struct read_state {
 static int perf_event_read(int page_count, int page_size, void *_state,
 		    void *_header, void *_sample_ptr, void *_lost_ptr)
 {
+	__sync_synchronize();
+
 	volatile struct perf_event_mmap_page *header = _header;
 	uint64_t data_head = *((volatile uint64_t *) &header->data_head);
 	uint64_t data_tail = header->data_tail;
@@ -98,6 +100,7 @@ static int perf_event_read(int page_count, int page_size, void *_state,
 
 	__sync_synchronize();
 	header->data_tail += e->header.size;
+	__sync_synchronize();
 
 	return e->header.type;
 }
@@ -161,6 +164,8 @@ func (pm *PerfMap) SetTimestampFunc(timestamp func(*[]byte) uint64) {
 
 var BeforeHarvest uint64
 
+var AllEvents []PerfMessage
+
 func (pm *PerfMap) PollStart() {
 	incoming := OrderedBytesArray{timestamp: pm.timestamp}
 
@@ -179,6 +184,7 @@ func (pm *PerfMap) PollStart() {
 		state := C.struct_read_state{}
 
 		var UniqueID uint64
+		var HarvestID uint64
 
 		for {
 			select {
@@ -197,7 +203,9 @@ func (pm *PerfMap) PollStart() {
 				}
 
 				var harvestCount C.int
+				var delta uint64 = 1 * 1000 * 1000 * 1000 // 500ms
 				BeforeHarvest = nowNanoseconds()
+				HarvestID++
 				//fmt.Printf("%v BeforeHarvest\n", BeforeHarvest)
 				lastCPU := 0
 				for cpu := 0; cpu < cpuCount; cpu++ {
@@ -222,7 +230,8 @@ func (pm *PerfMap) PollStart() {
 							if incoming.timestamp(&b) > BeforeHarvest {
 								mycpu += 100
 							}
-							incoming.bytesArray = append(incoming.bytesArray, PerfMessage{b, BeforeHarvest, int(harvestCount), mycpu, UniqueID})
+							incoming.bytesArray = append(incoming.bytesArray, PerfMessage{b, BeforeHarvest, int(harvestCount), int(HarvestID), UniqueID})
+							AllEvents = append(AllEvents, PerfMessage{b, BeforeHarvest, int(harvestCount), int(HarvestID), UniqueID})
 							harvestCount++
 							if pm.timestamp == nil || incoming.timestamp(&b) == 0 {
 								continue ringBufferLoop
@@ -248,16 +257,17 @@ func (pm *PerfMap) PollStart() {
 					if incoming.timestamp == nil {
 						panic("no timestamp function")
 					}
-					if incoming.timestamp != nil && incoming.timestamp(&incoming.bytesArray[0].B) > BeforeHarvest {
+					if incoming.timestamp != nil && incoming.timestamp(&incoming.bytesArray[0].B) > BeforeHarvest - delta {
 						// This record has been sent after the beginning of the harvest. Stop
 						// processing here to keep the order. "incoming" is sorted, so the next
 						// elements also must not be processed now.
 						incoming.bytesArray[0].MyCPU += 1000
+						//fmt.Printf("CHECK POINT\n")
 						break harvestLoop
 					}
 					//pm.receiverChan <- DataChan{incoming.bytesArray[0].B, BeforeHarvest, incoming.Len()}
 					pm.receiverChan <- DataChan{incoming.bytesArray[0].B, incoming.bytesArray[0].Timestamp, BeforeHarvest, incoming.Len(),
-						incoming.bytesArray[0].MyCPU + lastCPU*10000, incoming.bytesArray[0].UniqueID}
+						int(HarvestID) - incoming.bytesArray[0].MyCPU + lastCPU*100000, incoming.bytesArray[0].UniqueID}
 					// remove first element
 					incoming.bytesArray = incoming.bytesArray[1:]
 				}

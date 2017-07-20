@@ -34,6 +34,15 @@ func (t *tcpEventTracer) TCPEventV4(e tracer.TcpV4, beforeHarvestPacket, beforeH
 	if lateEvent > 0 {
 		lateEvent++
 		if lateEvent > 15 {
+
+			f, _ := os.Create("/tmp/tracer.log")
+			for _, e2 := range elf.AllEvents {
+				e1 := tracer.TcpV4ToGo(&e2.B)
+				f.WriteString(fmt.Sprintf("%v cpu#%d %s %v %s %v:%v %v:%v %v [extra: ts=%v counter %v mycpu=%v UniqueID=%v]]\n",
+					e1.Timestamp, e1.CPU, e1.Type, e1.Pid, e1.Comm, e1.SAddr, e1.SPort, e1.DAddr, e1.DPort, e1.NetNS,
+					e2.Timestamp, e2.Count, e2.MyCPU, e2.UniqueID))
+			}
+			f.Sync()
 			os.Exit(1)
 		}
 	}

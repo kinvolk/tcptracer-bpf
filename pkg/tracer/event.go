@@ -11,7 +11,7 @@ import (
 */
 import "C"
 
-func tcpV4ToGo(data *[]byte) (ret TcpV4) {
+func TcpV4ToGo(data *[]byte) (ret TcpV4) {
 	eventC := (*C.struct_tcp_ipv4_event_t)(unsafe.Pointer(&(*data)[0]))
 
 	ret.Timestamp = uint64(eventC.timestamp)
