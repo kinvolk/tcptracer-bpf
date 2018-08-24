@@ -87,6 +87,7 @@ while [[ $lines_read -lt $lines_expected ]]; do
             || [[ "${action}" == "close" && "$saddr" == "127.0.0.1:${port}" ]] \
             || [[ "${action}" == "close" && "$saddr" == "127.0.0.1:${port2}" ]]; then
             lines_found=$((lines_found + 1))
+            echo $lines_found
         else
             echo "^^^ unexpected values in event"
         fi
@@ -98,6 +99,7 @@ while [[ $lines_read -lt $lines_expected ]]; do
         printf "action: %s pid: %s fd: %s\n" "${action}" "${pid}" "${fd}"
         if [[ "${action}" == "fdinstall" && "$fd" -gt "2" ]]; then
             lines_found=$((lines_found + 1))
+            echo $lines_found
         else
             echo "^^^ unexpected values in event"
         fi
